@@ -1,0 +1,55 @@
+version: "3.9"
+
+# ============================================================
+# AegisAI — DAST Target Environment
+# OWASP Juice Shop (deliberately vulnerable app for testing)
+#
+# Usage:
+#   cd crawler_dast/target_docker
+#   docker-compose up -d
+#   # App available at http://localhost:3000
+# ============================================================
+
+networks:
+  dast_target_net:
+    driver: bridge
+
+services:
+
+  # ── OWASP Juice Shop ──────────────────────────────────────────
+  juice-shop:
+    image: bkimminich/juice-shop:v16.0.0
+    container_name: aegis_juice_shop
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - dast_target_net
+    environment:
+      - NODE_ENV=unsafe
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/#/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ── DVWA (optional second target — uncomment to enable) ───────
+  # dvwa:
+  #   image: vulnerables/web-dvwa:latest
+  #   container_name: aegis_dvwa
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080:80"
+  #   networks:
+  #     - dast_target_net
+
+  # ── WebGoat (optional — uncomment to enable) ──────────────────
+  # webgoat:
+  #   image: webgoat/webgoat:latest
+  #   container_name: aegis_webgoat
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8081:8080"
+  #   networks:
+  #     - dast_target_net

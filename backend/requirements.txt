@@ -1,0 +1,39 @@
+# ── FastAPI Core ──────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.17
+
+# ── Pydantic v2 ───────────────────────────────────────────────
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# ── Database ──────────────────────────────────────────────────
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+
+# ── Redis / Task Queue ────────────────────────────────────────
+redis==5.2.1
+celery==5.4.0
+
+# ── HTTP / Async ──────────────────────────────────────────────
+httpx==0.28.1
+aiofiles==24.1.0
+
+# ── AST / Code Parsing ────────────────────────────────────────
+tree-sitter==0.23.2
+# Language-specific tree-sitter grammars (install manually or via pip extras)
+# tree-sitter-python tree-sitter-javascript tree-sitter-typescript
+
+# ── Git ───────────────────────────────────────────────────────
+gitpython==3.1.43
+
+# ── Utilities ────────────────────────────────────────────────
+python-dotenv==1.0.1
+structlog==24.4.0
+tenacity==9.0.0
+
+# ── Dev / Test ────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.24.0
+httpx  # also used for test client

@@ -1,0 +1,7 @@
+[
+  {
+    "instruction": "Analyse the following Python route handler for security vulnerabilities. Identify any OWASP Top 10 issues, assign a severity level, suggest a CWE identifier, and provide a remediation recommendation.",
+    "input": "from flask import Flask, request\nimport sqlite3\n\napp = Flask(__name__)\n\n@app.route('/api/user')\ndef get_user():\n    user_id = request.args.get('id')\n    conn = sqlite3.connect('users.db')\n    cursor = conn.cursor()\n    cursor.execute(f'SELECT * FROM users WHERE id = {user_id}')\n    return str(cursor.fetchone())",
+    "output": "{\n  \"vulnerability\": \"SQL Injection (SQLI)\",\n  \"cwe_id\": \"CWE-89\",\n  \"owasp_category\": \"A03:2021 – Injection\",\n  \"severity\": \"CRITICAL\",\n  \"confidence\": 0.98,\n  \"description\": \"The route directly interpolates the unsanitised `id` query parameter into a raw SQL string using an f-string. An attacker can inject arbitrary SQL, enabling data exfiltration, authentication bypass, or full database compromise.\",\n  \"exploit_payload\": \"GET /api/user?id=1 OR 1=1 UNION SELECT username,password,NULL FROM users--\",\n  \"remediation\": \"Use parameterised queries (cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))) or an ORM like SQLAlchemy. Validate and cast `user_id` to an integer before use.\",\n  \"references\": [\n    \"https://owasp.org/Top10/A03_2021-Injection/\",\n    \"https://cwe.mitre.org/data/definitions/89.html\",\n    \"https://docs.python.org/3/library/sqlite3.html#sqlite3.Cursor.execute\"\n  ]\n}"
+  }
+]

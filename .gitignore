@@ -1,0 +1,113 @@
+# ============================================================
+# AegisAI — .gitignore
+# Python · Next.js · ML / LLM Monorepo
+# ============================================================
+
+# ── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# mypy / pyright
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyright/
+
+# ── Node / Next.js ───────────────────────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Environment & Secrets ────────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ── Large ML Model Files ─────────────────────────────────────
+# Never commit model weights — use HuggingFace Hub / DVC instead
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.pkl
+*.pickle
+models/
+checkpoints/
+lora_adapters/
+merged_model/
+
+# ── Datasets (large) ────────────────────────────────────────
+# Commit only small dummy/sample files
+ai_engine/datasets/*.jsonl
+ai_engine/datasets/*.parquet
+ai_engine/datasets/*.arrow
+!ai_engine/datasets/formatted_train_dummy.json
+
+# ── Docker ──────────────────────────────────────────────────
+# Keep docker-compose files, ignore runtime volumes
+docker_volumes/
+.docker/
+
+# ── IDE / Editor ────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Logs & Temp ─────────────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
+.tmp/
+
+# ── Playwright ──────────────────────────────────────────────
+playwright-report/
+test-results/

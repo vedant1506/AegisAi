@@ -1,0 +1,115 @@
+version: "3.9"
+
+# ============================================================
+# AegisAI — Master Docker Compose
+# Orchestrates all services for local development.
+# ============================================================
+
+networks:
+  aegis_net:
+    driver: bridge
+
+volumes:
+  redis_data:
+  postgres_data:
+
+services:
+
+  # ── Redis (Task Queue / Cache) ─────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: aegis_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - aegis_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgreSQL (Persistent Scan Results) ──────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: aegis_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: aegisai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aegis_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis -d aegisai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI Backend ────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aegis_backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - aegis_net
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Next.js Frontend ──────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aegis_frontend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - aegis_net
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+  # ── Ollama (Local LLM Inference) ──────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: aegis_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    networks:
+      - aegis_net
+    volumes:
+      - ~/.ollama:/root/.ollama
+    # Uncomment to enable GPU:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]

@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── CSS Custom Properties ─────────────────────────────────── */
+:root {
+  --color-aegis-primary: theme("colors.aegis.500");
+  --color-aegis-dark: theme("colors.aegis.900");
+  --radius-card: 0.75rem;
+}
+
+/* ── Base Reset ────────────────────────────────────────────── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-aegis-700 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-aegis-500;
+  }
+}
+
+/* ── Component Utilities ───────────────────────────────────── */
+@layer components {
+  /* Glass card */
+  .card-glass {
+    @apply bg-white/5 border border-white/10 backdrop-blur-sm rounded-xl;
+  }
+
+  /* Severity badge base */
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .badge-critical {
+    @apply badge bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+
+  .badge-high {
+    @apply badge bg-orange-500/20 text-orange-400 border border-orange-500/30;
+  }
+
+  .badge-medium {
+    @apply badge bg-yellow-500/20 text-yellow-400 border border-yellow-500/30;
+  }
+
+  .badge-low {
+    @apply badge bg-blue-500/20 text-blue-400 border border-blue-500/30;
+  }
+
+  .badge-info {
+    @apply badge bg-slate-500/20 text-slate-400 border border-slate-500/30;
+  }
+
+  /* Button variants */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-aegis-600 hover:bg-aegis-500
+           text-white font-medium rounded-lg transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-aegis-500 focus:ring-offset-2
+           focus:ring-offset-slate-950 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-transparent
+           hover:bg-white/10 text-slate-300 font-medium rounded-lg
+           transition-all duration-200 border border-white/10 hover:border-white/20;
+  }
+
+  /* Code block */
+  .code-block {
+    @apply font-mono text-sm bg-slate-900 border border-slate-700
+           rounded-lg p-4 overflow-x-auto;
+  }
+}
