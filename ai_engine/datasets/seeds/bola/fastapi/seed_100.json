@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get(\"/api/v1/admin/audit-logs\", response_model=List[AuditLogEntry])\ndef query_audit_logs(\n    org_id: Optional[int] = Query(None),\n    action: Optional[str] = Query(None),\n    limit: int = Query(50, le=100),\n    db: Session = Depends(get_db),\n    current_user: User = Depends(get_current_user)\n):\n    query = db.query(AuditLog)\n    if org_id:\n        query = query.filter(AuditLog.organization_id == org_id)\n    if action:\n        query = query.filter(AuditLog.action == action)\n    return query.order_by(AuditLog.timestamp.desc()).limit(limit).all()",
+  "diagnosis": "The admin audit log query takes org_id directly from the query parameters and defaults to unscoped search if omitted or permits querying any org_id. It never enforces AuditLog.organization_id == current_user.organization_id, allowing any tenant admin to inspect security audit trails and user activities of other organizations.",
+  "exploit_request": "GET /api/v1/admin/audit-logs?org_id=402&action=api_key.created HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <tenant_admin_jwt>",
+  "corrected_code": "@router.get(\"/api/v1/admin/audit-logs\", response_model=List[AuditLogEntry])\ndef query_audit_logs(\n    org_id: Optional[int] = Query(None),\n    action: Optional[str] = Query(None),\n    limit: int = Query(50, le=100),\n    db: Session = Depends(get_db),\n    current_user: User = Depends(get_current_user)\n):\n    query = db.query(AuditLog).filter(AuditLog.organization_id == current_user.organization_id)\n    if action:\n        query = query.filter(AuditLog.action == action)\n    return query.order_by(AuditLog.timestamp.desc()).limit(limit).all()",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

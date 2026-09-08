@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class CustomerProfileAdmin(admin.ModelAdmin):\n    def get_urls(self):\n        urls = super().get_urls()\n        custom_urls = [\n            path('<int:profile_id>/export-ssn/', self.admin_site.admin_view(self.export_ssn_dossier)),\n        ]\n        return custom_urls + urls\n\n    def export_ssn_dossier(self, request, profile_id):\n        profile = CustomerProfile.objects.get(id=profile_id)\n        return JsonResponse({'full_name': profile.user.get_full_name(), 'tax_id': profile.ssn_plaintext})",
+  "diagnosis": "The custom admin URL delegates authentication to admin_site.admin_view, verifying only is_staff. It omits checking self.has_change_permission(request, obj) or verifying regional staff scoping, allowing any staff member with basic admin access to extract plaintext tax identification numbers.",
+  "exploit_request": "GET /admin/customers/customerprofile/412/export-ssn/ HTTP/1.1\nHost: internal.example.com\nCookie: sessionid=support_staff_session",
+  "corrected_code": "class CustomerProfileAdmin(admin.ModelAdmin):\n    def get_urls(self):\n        urls = super().get_urls()\n        custom_urls = [\n            path('<int:profile_id>/export-ssn/', self.admin_site.admin_view(self.export_ssn_dossier)),\n        ]\n        return custom_urls + urls\n\n    def export_ssn_dossier(self, request, profile_id):\n        profile = get_object_or_404(CustomerProfile, id=profile_id)\n        if not self.has_change_permission(request, profile) or not request.user.has_perm('customers.can_view_pii'):\n            raise PermissionDenied()\n        return JsonResponse({'full_name': profile.user.get_full_name(), 'tax_id': profile.ssn_plaintext})",
+  "severity": "HIGH",
+  "confidence": 0.92
+}

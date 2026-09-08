@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package warehouse\n\nimport (\n\t\"context\"\n\t\"myapp/inventory\"\n)\n\ntype RestockJob struct {\n\tProductID   string\n\tQuantity    int\n\tInitiatedBy string\n}\n\ntype RestockWorker struct {\n\tInvStore inventory.Store\n}\n\nfunc (w *RestockWorker) ApplyRestock(ctx context.Context, job RestockJob) error {\n\t// BOLA: Updates product quantity directly without verifying vendor ownership\n\treturn w.InvStore.AddStock(ctx, job.ProductID, job.Quantity)\n}\n",
+  "diagnosis": "The ApplyRestock background worker routine applies inventory adjustments directly to ProductID without validating that InitiatedBy is the registered vendor for the product. In a multi-vendor marketplace, a rogue vendor can increase or distort stock levels for competing sellers.",
+  "exploit_request": "POST /api/inventory/queue-restock HTTP/1.1\nHost: marketplace.merchant-hub.com\nAuthorization: Bearer vendor_token_40\nContent-Type: application/json\n\n{\"product_id\": \"prod_competitor_102\", \"add_stock\": 1000}",
+  "corrected_code": "package warehouse\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"myapp/inventory\"\n)\n\ntype RestockJob struct {\n\tProductID   string\n\tQuantity    int\n\tInitiatedBy string\n}\n\ntype RestockWorker struct {\n\tInvStore inventory.Store\n}\n\nfunc (w *RestockWorker) ApplyRestock(ctx context.Context, job RestockJob) error {\n\townerVendorID, err := w.InvStore.GetVendorIDForProduct(ctx, job.ProductID)\n\tif err != nil || ownerVendorID != job.InitiatedBy {\n\t\treturn errors.New(\"worker rejected: initiating vendor does not own product\")\n\t}\n\n\treturn w.InvStore.AddStock(ctx, job.ProductID, job.Quantity)\n}\n",
+  "severity": "MEDIUM",
+  "confidence": 0.84
+}

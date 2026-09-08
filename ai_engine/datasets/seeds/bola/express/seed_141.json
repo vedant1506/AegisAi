@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.get('/messages', async (req, res) => {\n  const msgId = req.query.msg_id;\n  const message = await prisma.message.findUnique({ where: { id: parseInt(msgId) } });\n  res.json(message);\n});",
+  "diagnosis": "The route fetches a specific direct message via a query parameter 'msg_id' using Prisma findUnique. There is no validation to ensure the requesting user is either the sender or receiver of the message.",
+  "exploit_request": "GET /messages?msg_id=8923 HTTP/1.1\nHost: api.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "app.get('/messages', async (req, res) => {\n  const msgId = req.query.msg_id;\n  const message = await prisma.message.findUnique({ where: { id: parseInt(msgId) } });\n  if (!message || (message.senderId !== req.user.id && message.receiverId !== req.user.id)) {\n    return res.status(403).send('Access denied');\n  }\n  res.json(message);\n});",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

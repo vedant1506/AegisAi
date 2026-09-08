@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class WorkspaceSerializer < ActiveModel::Serializer\n  attributes :id, :name, :plan_tier\n\n  # Exposes private corporate transactions to read-only project guests\n  has_many :billing_transactions\nend\n\nclass WorkspacesController < ApplicationController\n  def show\n    workspace = Workspace.find(params[:id])\n    render json: workspace\n  end\nend",
+  "diagnosis": "WorkspaceSerializer embeds billing_transactions on the workspace object without restricting access to organization billing admins. External guests invited to view specific workspace boards can extract complete corporate credit card receipts and tax identifiers.",
+  "exploit_request": "GET /api/workspaces/ws_1102 HTTP/1.1\nHost: app.cloudboards.io\nAuthorization: Bearer guest_collaborator_token_31\nAccept: application/json",
+  "corrected_code": "class WorkspaceSerializer < ActiveModel::Serializer\n  attributes :id, :name, :plan_tier\n\n  has_many :billing_transactions, if: :can_view_financials?\n\n  def can_view_financials?\n    scope&.billing_admin_for?(object)\n  end\nend\n\nclass WorkspacesController < ApplicationController\n  def show\n    workspace = Workspace.find(params[:id])\n    render json: workspace\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.91
+}

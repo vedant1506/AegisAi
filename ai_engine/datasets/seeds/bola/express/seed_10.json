@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.get('/api/security/:id', async (req, res) => {\n  const item = await SecurityPref.findByPk(req.params.id);\n  res.json(item);\n});",
+  "diagnosis": "The endpoint fetches the security item using the 'id' URL parameter without verifying if the authenticated user owns this specific item.",
+  "exploit_request": "GET /api/security/9942 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.get('/api/security/:id', async (req, res) => {\n  const item = await SecurityPref.findOne({ where: { id: req.params.id, userId: req.user.id } });\n  if (!item) return res.status(404).send('Not found');\n  res.json(item);\n});"
+}

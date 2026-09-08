@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@Controller('devices')\n@UseGuards(JwtAuthGuard)\nexport class DeviceController {\n  constructor(private readonly deviceService: DeviceManagementService) {}\n\n  @Post(':deviceId/reboot')\n  async triggerReboot(@Param('deviceId') deviceId: string) {\n    const device = await this.deviceService.findDevice(deviceId);\n    if (!device) throw new NotFoundException('Device not found');\n    await this.deviceService.sendMqttCommand(device.hardwareSerial, 'REBOOT');\n    return { status: 'reboot_dispatched', deviceId };\n  }\n}",
+  "diagnosis": "The endpoint accepts a deviceId parameter and triggers a hardware reboot command over MQTT. It does not check if the requesting user is the registered owner or household member of the device, enabling unauthorized rebooting and disruption of smart locks, thermostats, or security sensors.",
+  "exploit_request": "POST /devices/dev_thermostat_0042/reboot HTTP/1.1\nHost: api.smarthome.io\nAuthorization: Bearer <attacker_jwt>\nContent-Length: 0",
+  "corrected_code": "@Controller('devices')\n@UseGuards(JwtAuthGuard)\nexport class DeviceController {\n  constructor(private readonly deviceService: DeviceManagementService) {}\n\n  @Post(':deviceId/reboot')\n  async triggerReboot(@Param('deviceId') deviceId: string, @Req() req: AuthenticatedRequest) {\n    const device = await this.deviceService.findUserDevice(deviceId, req.user.id);\n    if (!device) throw new ForbiddenException('Access denied to target device');\n    await this.deviceService.sendMqttCommand(device.hardwareSerial, 'REBOOT');\n    return { status: 'reboot_dispatched', deviceId };\n  }\n}",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

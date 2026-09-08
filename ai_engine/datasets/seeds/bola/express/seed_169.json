@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const tradingResolvers = {\n  Subscription: {\n    portfolioValuationLive: {\n      subscribe: (parent, args, context) => {\n        return redisPubSub.asyncIterator([`PORTFOLIO_${args.portfolioId}_VALUATION`]);\n      },\n      resolve: (payload) => payload.currentEquity\n    }\n  }\n};",
+  "diagnosis": "The subscription handler connects directly to a dynamic Redis pub/sub channel using args.portfolioId. Because it never checks context.user against the portfolio's account owner, an attacker can subscribe to real-time equity balances, open positions, and margin call events of high-net-worth trading accounts.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: trading.brokerage.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Protocol: graphql-ws\n\n{\"type\": \"start\", \"id\": \"1\", \"payload\": {\"query\": \"subscription { portfolioValuationLive(portfolioId: \\\"pf_institutional_882\\\") }\"}}",
+  "corrected_code": "const tradingResolvers = {\n  Subscription: {\n    portfolioValuationLive: {\n      subscribe: async (parent, args, context) => {\n        if (!context.user) throw new Error('Authentication required');\n        const portfolio = await Portfolio.findOne({ where: { id: args.portfolioId, ownerId: context.user.id } });\n        if (!portfolio) throw new Error('Access denied to portfolio stream');\n        return redisPubSub.asyncIterator([`PORTFOLIO_${args.portfolioId}_VALUATION`]);\n      },\n      resolve: (payload) => payload.currentEquity\n    }\n  }\n};",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

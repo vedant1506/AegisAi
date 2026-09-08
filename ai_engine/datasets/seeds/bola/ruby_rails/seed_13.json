@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Ability\n  include CanCan::Ability\n\n  def initialize(user)\n    return unless user.present?\n\n    # CanCanCan bug: block condition cannot be translated to SQL by accessible_by.\n    # When Document.accessible_by(current_ability) is executed in controllers,\n    # the block is ignored and ALL records are returned without WHERE filtering!\n    can :read, Document do |doc|\n      doc.organization_id == user.organization_id\n    end\n  end\nend\n\nclass DocumentsController < ApplicationController\n  def index\n    @documents = Document.accessible_by(current_ability)\n    render json: @documents\n  end\nend",
+  "diagnosis": "Defining CanCanCan rules using Ruby blocks prevents the library from compiling SQL conditions when calling accessible_by in index actions. The database executes an unfiltered SELECT * query, leaking confidential corporate documents from all organizations to any authenticated user.",
+  "exploit_request": "GET /api/documents HTTP/1.1\nHost: docs.enterprise-storage.com\nAuthorization: Bearer org_user_jwt_120\nAccept: application/json",
+  "corrected_code": "class Ability\n  include CanCan::Ability\n\n  def initialize(user)\n    return unless user.present?\n\n    # Use hash conditions so CanCanCan can construct valid SQL queries for accessible_by\n    can :read, Document, organization_id: user.organization_id\n  end\nend\n\nclass DocumentsController < ApplicationController\n  def index\n    @documents = Document.accessible_by(current_ability)\n    render json: @documents\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

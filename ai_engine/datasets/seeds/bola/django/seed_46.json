@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ChatConsumer(AsyncWebsocketConsumer):\n    async def receive(self, text_data):\n        payload = json.loads(text_data)\n        if payload.get('action') == 'join_room':\n            room_id = payload.get('room_id')\n            await self.channel_layer.group_add(f\"room_{room_id}\", self.channel_name)\n            await self.send(text_data=json.dumps({'status': f'joined room {room_id}'}))",
+  "diagnosis": "The WebSocket consumer accepts a room_id in a JSON message and immediately subscribes the connection to that channel layer group. It does not verify whether self.scope['user'] has permissions to join the room, enabling eavesdropping on private conversations.",
+  "exploit_request": "GET /ws/chat/ HTTP/1.1\nHost: chat.example.com\nUpgrade: websocket\nConnection: Upgrade\nCookie: sessionid=attacker_session\n\n{\"action\": \"join_room\", \"room_id\": 992}",
+  "corrected_code": "class ChatConsumer(AsyncWebsocketConsumer):\n    async def receive(self, text_data):\n        payload = json.loads(text_data)\n        if payload.get('action') == 'join_room':\n            room_id = payload.get('room_id')\n            has_access = await database_sync_to_async(\n                ChatRoom.objects.filter(id=room_id, members=self.scope['user']).exists\n            )()\n            if not has_access:\n                await self.send(text_data=json.dumps({'error': 'Forbidden'}))\n                return\n            await self.channel_layer.group_add(f\"room_{room_id}\", self.channel_name)\n            await self.send(text_data=json.dumps({'status': f'joined room {room_id}'}))",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

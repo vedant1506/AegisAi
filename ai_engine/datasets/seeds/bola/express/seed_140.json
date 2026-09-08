@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "router.post('/payments/refund', async (req, res) => {\n  const { paymentId } = req.body;\n  const payment = await PaymentModel.findOne({ _id: paymentId });\n  if (payment.status !== 'completed') return res.status(400).send('Invalid status');\n  await processRefund(payment);\n  res.json({ success: true });\n});",
+  "diagnosis": "Refund action reads paymentId from the request body and processes a refund using Mongoose. It checks payment status but lacks any authorization check to ensure the requester actually owns the payment.",
+  "exploit_request": "POST /payments/refund HTTP/1.1\nHost: api.example.com\nContent-Type: application/json\nAuthorization: Bearer <token>\n\n{\"paymentId\": \"60d5ecb8b392d700155sq920\"}",
+  "corrected_code": "router.post('/payments/refund', async (req, res) => {\n  const { paymentId } = req.body;\n  const payment = await PaymentModel.findOne({ _id: paymentId, accountId: req.user.accountId });\n  if (!payment) return res.status(404).send('Payment not found');\n  if (payment.status !== 'completed') return res.status(400).send('Invalid status');\n  await processRefund(payment);\n  res.json({ success: true });\n});",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

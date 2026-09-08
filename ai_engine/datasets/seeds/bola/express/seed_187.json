@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const { Client } = require('pg');\n\nexports.handler = async (event) => {\n  const rxId = event.pathParameters.rxId;\n  const client = new Client({ connectionString: process.env.DATABASE_URL });\n  await client.connect();\n  const res = await client.query('UPDATE prescriptions SET refill_requested = true WHERE id = $1 RETURNING *', [rxId]);\n  await client.end();\n  if (res.rows.length === 0) return { statusCode: 404, body: JSON.stringify({ error: 'Prescription not found' }) };\n  return { statusCode: 200, body: JSON.stringify(res.rows[0]) };\n};",
+  "diagnosis": "The Lambda endpoint marks a prescription as refill-requested in Aurora Postgres by prescription ID without validating that the prescription's patient_id matches the patient's identity in event.requestContext.authorizer.claims.sub.",
+  "exploit_request": "POST /prescriptions/rx_oxycodone_58291/refill HTTP/1.1\nHost: api.pharmacy.aws\nAuthorization: Bearer <patient_token>",
+  "corrected_code": "const { Client } = require('pg');\n\nexports.handler = async (event) => {\n  const rxId = event.pathParameters.rxId;\n  const patientId = event.requestContext.authorizer.claims.sub;\n  const client = new Client({ connectionString: process.env.DATABASE_URL });\n  await client.connect();\n  const res = await client.query(\n    'UPDATE prescriptions SET refill_requested = true WHERE id = $1 AND patient_id = $2 RETURNING *',\n    [rxId, patientId]\n  );\n  await client.end();\n  if (res.rows.length === 0) return { statusCode: 403, body: JSON.stringify({ error: 'Prescription not found or unauthorized' }) };\n  return { statusCode: 200, body: JSON.stringify(res.rows[0]) };\n};",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const { createProxyMiddleware } = require('http-proxy-middleware');\n\napp.use('/analytics/organizations/:orgId/query', verifyToken, (req, res, next) => {\n  createProxyMiddleware({\n    target: process.env.CLICKHOUSE_QUERY_PROXY_URL,\n    changeOrigin: true,\n    pathRewrite: {\n      ['^/analytics/organizations/' + req.params.orgId]: `/clickhouse/tenant/${req.params.orgId}`\n    }\n  })(req, res, next);\n});",
+  "diagnosis": "The proxy forwards ClickHouse analytics queries by rewriting the path with orgId from the URL route. While verifyToken checks user login, it fails to verify whether req.user.organizationId matches req.params.orgId. Any user can proxy analytics queries to view business metrics and activity logs of other organizations.",
+  "exploit_request": "POST /analytics/organizations/org_competitor_8891/query HTTP/1.1\nHost: analytics.gateway.io\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"query\": \"SELECT count(*), sum(revenue) FROM daily_orders WHERE date >= '2026-01-01'\"}",
+  "corrected_code": "const { createProxyMiddleware } = require('http-proxy-middleware');\n\napp.use('/analytics/organizations/:orgId/query', verifyToken, (req, res, next) => {\n  if (req.user.organizationId !== req.params.orgId) {\n    return res.status(403).json({ error: 'Forbidden: unauthorized organization analytics scope' });\n  }\n  createProxyMiddleware({\n    target: process.env.CLICKHOUSE_QUERY_PROXY_URL,\n    changeOrigin: true,\n    pathRewrite: {\n      ['^/analytics/organizations/' + req.params.orgId]: `/clickhouse/tenant/${req.params.orgId}`\n    }\n  })(req, res, next);\n});",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

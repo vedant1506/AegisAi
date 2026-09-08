@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "router.post('/api/sessions/:sessionId/settings', checkToken, async (req, res) => {\n  const { sessionId } = req.params;\n  const { theme, language } = req.body;\n\n  const sessionKey = `sess:${sessionId}`;\n  const exists = await redis.exists(sessionKey);\n  if (!exists) return res.status(404).send('Session not found');\n\n  await redis.hmset(sessionKey, {\n    theme: theme || 'dark',\n    language: language || 'en',\n    lastModified: Date.now()\n  });\n\n  res.json({ success: true, sessionId });\n});",
+  "diagnosis": "The endpoint writes UI preference settings directly to the Redis session hash key sess:${sessionId} without verifying that the sessionId belongs to req.user.id. Any authenticated user can modify settings of other active user sessions.",
+  "exploit_request": "POST /api/sessions/sess_user_alpha_09/settings HTTP/1.1\nHost: app.portal.com\nAuthorization: Bearer <user_jwt>\nContent-Type: application/json\n\n{\"theme\": \"high-contrast\", \"language\": \"fr\"}",
+  "corrected_code": "router.post('/api/sessions/:sessionId/settings', checkToken, async (req, res) => {\n  const { sessionId } = req.params;\n  const { theme, language } = req.body;\n\n  const sessionKey = `sess:${sessionId}`;\n  const owner = await redis.hget(sessionKey, 'userId');\n  if (!owner) return res.status(404).send('Session not found');\n\n  if (owner !== req.user.id) {\n    return res.status(403).send('Forbidden: cannot modify settings of another user session');\n  }\n\n  await redis.hmset(sessionKey, {\n    theme: theme || 'dark',\n    language: language || 'en',\n    lastModified: Date.now()\n  });\n\n  res.json({ success: true, sessionId });\n});",
+  "severity": "LOW",
+  "confidence": 0.85
+}

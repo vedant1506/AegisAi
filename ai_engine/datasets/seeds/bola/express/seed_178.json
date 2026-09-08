@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "io.on('connection', (socket) => {\n  socket.on('telemetry:set_threshold', async ({ facilityId, sensorId, maxPsiThreshold }) => {\n    await SensorConfig.updateOne({ facilityId, sensorId }, { maxPressurePsi: maxPsiThreshold });\n    io.to(`facility:${facilityId}`).emit('threshold_recalibrated', { sensorId, maxPsiThreshold });\n  });\n});",
+  "diagnosis": "Industrial SCADA event handler updates pressure safety limits for plant sensors without verifying if socket.data.userId is assigned as an authorized engineer at facilityId. An attacker can set dangerously high pressure thresholds on boiler or HVAC control loops across unassigned facilities.",
+  "exploit_request": "socket.emit('telemetry:set_threshold', {\n  facilityId: 'plant_nuclear_coolant_sec4',\n  sensorId: 'psi_sensor_990',\n  maxPsiThreshold: 9999\n});",
+  "corrected_code": "io.on('connection', (socket) => {\n  socket.on('telemetry:set_threshold', async ({ facilityId, sensorId, maxPsiThreshold }) => {\n    const engineer = await FacilityStaff.findOne({ userId: socket.data.userId, facilityId, role: 'CHIEF_ENGINEER' });\n    if (!engineer) {\n      return socket.emit('error', { message: 'Unauthorized: insufficient facility engineering clearances' });\n    }\n    await SensorConfig.updateOne({ facilityId, sensorId }, { maxPressurePsi: maxPsiThreshold });\n    io.to(`facility:${facilityId}`).emit('threshold_recalibrated', { sensorId, maxPsiThreshold });\n  });\n});",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

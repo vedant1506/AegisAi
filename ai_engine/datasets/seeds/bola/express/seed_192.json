@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "export const subscriptionRouter = router({\n  adjustSeats: protectedProcedure\n    .input(z.object({ subscriptionId: z.string(), seatCount: z.number().min(1) }))\n    .mutation(async ({ input, ctx }) => {\n      const sub = await ctx.em.findOne(SubscriptionEntity, { id: input.subscriptionId });\n      if (!sub) throw new TRPCError({ code: 'NOT_FOUND' });\n      sub.allocatedSeats = input.seatCount;\n      await ctx.em.flush();\n      return { subscriptionId: sub.id, allocatedSeats: sub.allocatedSeats };\n    }),\n});",
+  "diagnosis": "The mutation directly updates allocatedSeats for input.subscriptionId without verifying that ctx.user is the tenant administrator for that subscription. An attacker can downgrade seats of competitor enterprise subscriptions, locking out their staff.",
+  "exploit_request": "POST /trpc/subscription.adjustSeats HTTP/1.1\nHost: manage.cloudsuite.com\nContent-Type: application/json\nAuthorization: Bearer <attacker_jwt>\n\n{\"subscriptionId\": \"sub_enterprise_38190\", \"seatCount\": 1}",
+  "corrected_code": "export const subscriptionRouter = router({\n  adjustSeats: protectedProcedure\n    .input(z.object({ subscriptionId: z.string(), seatCount: z.number().min(1) }))\n    .mutation(async ({ input, ctx }) => {\n      const sub = await ctx.em.findOne(SubscriptionEntity, {\n        id: input.subscriptionId,\n        tenantId: ctx.user.tenantId,\n      });\n      if (!sub) throw new TRPCError({ code: 'FORBIDDEN', message: 'Unauthorized subscription modification' });\n      sub.allocatedSeats = input.seatCount;\n      await ctx.em.flush();\n      return { subscriptionId: sub.id, allocatedSeats: sub.allocatedSeats };\n    }),\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.92
+}

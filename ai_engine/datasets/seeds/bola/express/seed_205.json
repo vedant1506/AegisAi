@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const { Queue } = require('bullmq');\nconst payrollQueue = new Queue('payroll-payouts', { connection: redisClient });\n\napp.post('/api/payroll/queue-payout', verifyJwt, async (req, res) => {\n  const { companyId, batchId } = req.body;\n  const job = await payrollQueue.add('execute-payout', {\n    companyId,\n    batchId,\n    submittedBy: req.user.id\n  });\n  res.status(202).json({ queued: true, jobId: job.id });\n});",
+  "diagnosis": "The endpoint enqueues a payroll payout job using companyId directly from the request payload. It does not verify that req.user is an authorized payroll administrator for that companyId, enabling attackers to trigger automated salary disbursements from victim enterprise treasury balances.",
+  "exploit_request": "POST /api/payroll/queue-payout HTTP/1.1\nHost: payroll.fintech.io\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"companyId\": \"comp_target_corp_9918\", \"batchId\": \"batch_march_salaries_01\"}",
+  "corrected_code": "const { Queue } = require('bullmq');\nconst payrollQueue = new Queue('payroll-payouts', { connection: redisClient });\n\napp.post('/api/payroll/queue-payout', verifyJwt, async (req, res) => {\n  const { companyId, batchId } = req.body;\n  const isAuthorized = await CompanyRole.findOne({\n    where: { companyId, userId: req.user.id, role: 'PAYROLL_ADMIN' }\n  });\n  if (!isAuthorized) {\n    return res.status(403).json({ error: 'You are not authorized to trigger payroll for this company' });\n  }\n  const job = await payrollQueue.add('execute-payout', {\n    companyId,\n    batchId,\n    submittedBy: req.user.id\n  });\n  res.status(202).json({ queued: true, jobId: job.id });\n});",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

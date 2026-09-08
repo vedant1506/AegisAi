@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\n\n// routes/channels.php\nBroadcast::channel('document.{docUuid}', function (User $user, string $docUuid) {\n    // Returning an array in presence channel automatically authorizes access\n    return ['id' => $user->id, 'name' => $user->name];\n});",
+  "diagnosis": "The document collaboration channel returns user presence metadata without verifying workspace or document permissions. In Laravel broadcasting, returning a truthy value or array from a presence channel callback authorizes the client, allowing any user knowing a document UUID to join collaborative editing sessions and capture real-time diffs.",
+  "exploit_request": "POST /broadcasting/auth HTTP/1.1\nHost: realtime.docsync.cloud\nAuthorization: Bearer 58|externaluser4422\nContent-Type: application/json\n\n{\"socket_id\": \"99401.7766\", \"channel_name\": \"presence-document.e4b3c2a1-0000-4444-aaaa-bbbbccccdddd\"}",
+  "corrected_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\nuse App\\Models\\Document;\n\n// routes/channels.php\nBroadcast::channel('document.{docUuid}', function (User $user, string $docUuid) {\n    $document = Document::where('uuid', $docUuid)->first();\n    if (!$document || !$user->can('view', $document)) {\n        return false;\n    }\n\n    return ['id' => $user->id, 'name' => $user->name];\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.88
+}

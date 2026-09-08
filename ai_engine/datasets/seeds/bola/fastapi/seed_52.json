@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@strawberry.type\nclass Query:\n    @strawberry.field\n    def invoice(self, info: Info, id: int) -> Optional[InvoiceType]:\n        db: Session = info.context[\"db\"]\n        record = db.query(Invoice).filter(Invoice.id == id).first()\n        if not record:\n            return None\n        return InvoiceType.from_orm(record)",
+  "diagnosis": "The Strawberry GraphQL resolver takes an invoice id and queries the database session from the GraphQL execution context. However, it fails to scope the query to info.context['current_user'].id. Any authenticated GraphQL client can query arbitrary invoice IDs, exposing financial line items, vendor details, and payment histories.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"query\": \"query { invoice(id: 1042) { id amount customerName items { description cost } } }\"}",
+  "corrected_code": "@strawberry.type\nclass Query:\n    @strawberry.field\n    def invoice(self, info: Info, id: int) -> Optional[InvoiceType]:\n        db: Session = info.context[\"db\"]\n        current_user = info.context[\"current_user\"]\n        record = db.query(Invoice).filter(Invoice.id == id, Invoice.user_id == current_user.id).first()\n        if not record:\n            return None\n        return InvoiceType.from_orm(record)",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

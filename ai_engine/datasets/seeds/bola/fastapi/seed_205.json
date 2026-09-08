@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.delete(\"/analytics/saved-queries/{query_id}\")\nasync def delete_saved_query(\n    query_id: int,\n    current_user: User = Depends(get_current_user)\n):\n    saved_query = await SavedReportQuery.objects.get_or_none(id=query_id)\n    if not saved_query:\n        raise HTTPException(status_code=404, detail=\"Saved query not found\")\n    await saved_query.delete()\n    return {\"deleted\": True, \"query_id\": query_id}",
+  "diagnosis": "The saved query deletion endpoint fetches the query using ormar's get_or_none(id=query_id) and immediately invokes .delete() without validating that saved_query.author_id == current_user.id. Any authenticated analyst can delete saved reports created by colleagues.",
+  "exploit_request": "DELETE /analytics/saved-queries/451 HTTP/1.1\nHost: bi.analytics.io\nAuthorization: Bearer <analyst_token>",
+  "corrected_code": "@router.delete(\"/analytics/saved-queries/{query_id}\")\nasync def delete_saved_query(\n    query_id: int,\n    current_user: User = Depends(get_current_user)\n):\n    saved_query = await SavedReportQuery.objects.get_or_none(\n        id=query_id,\n        author_id=current_user.id\n    )\n    if not saved_query:\n        raise HTTPException(status_code=404, detail=\"Saved query not found or access denied\")\n    await saved_query.delete()\n    return {\"deleted\": True, \"query_id\": query_id}",
+  "severity": "LOW",
+  "confidence": 0.88
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ProcessOrderRefundWorker\n  include Sidekiq::Worker\n\n  def perform(order_id, recipient_user_id)\n    order = Order.find(order_id)\n    wallet = Wallet.find_by!(user_id: recipient_user_id)\n\n    # Refunds order amount to recipient_user_id without verifying order ownership\n    wallet.credit!(order.total_amount, reason: \"Refund for order ##{order.id}\")\n  end\nend\n\nclass OrdersController < ApplicationController\n  def request_refund\n    ProcessOrderRefundWorker.perform_async(params[:id], current_user.id)\n    render json: { message: 'Refund enqueued' }\n  end\nend",
+  "diagnosis": "The refund worker credits the refund amount to recipient_user_id without checking that order.user_id matches recipient_user_id. An attacker can pass arbitrary victim order IDs to divert store credit refunds into their own wallet.",
+  "exploit_request": "POST /api/orders/ord_9901/request_refund HTTP/1.1\nHost: shop.retail-cloud.com\nAuthorization: Bearer attacker_customer_token\nContent-Type: application/json",
+  "corrected_code": "class ProcessOrderRefundWorker\n  include Sidekiq::Worker\n\n  def perform(order_id, recipient_user_id)\n    order = Order.find(order_id)\n    raise 'Order ownership mismatch' unless order.user_id == recipient_user_id\n\n    wallet = Wallet.find_by!(user_id: recipient_user_id)\n    wallet.credit!(order.total_amount, reason: \"Refund for order ##{order.id}\")\n  end\nend\n\nclass OrdersController < ApplicationController\n  def request_refund\n    order = current_user.orders.find(params[:id])\n    ProcessOrderRefundWorker.perform_async(order.id, current_user.id)\n    render json: { message: 'Refund enqueued' }\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

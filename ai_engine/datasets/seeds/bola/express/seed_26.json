@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.put('/api/profile/update', async (req, res) => {\n  await Profile.update(req.body, { where: { id: req.body.itemId } });\n  res.send('Updated');\n});",
+  "diagnosis": "The update route for profile relies on an 'itemId' provided in the JSON body to identify which record to update, lacking authorization checks.",
+  "exploit_request": "PUT /api/profile/update HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"itemId\": 456, \"status\": \"compromised\"}",
+  "corrected_code": "app.put('/api/profile/update', async (req, res) => {\n  await Profile.update(req.body, { where: { id: req.body.itemId, ownerId: req.user.id } });\n  res.send('Updated');\n});"
+}

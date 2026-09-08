@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\ServerSnapshot;\n\nclass ServerSnapshotPolicy\n{\n    public function restore(User $user, ServerSnapshot $snapshot): bool\n    {\n        // Compares user current region against server region rather than verifying organization account ID\n        return $user->selected_region_id === $snapshot->server->region_id;\n    }\n}",
+  "diagnosis": "The ServerSnapshotPolicy restore method validates whether the user and snapshot reside in the same data-center region instead of verifying cloud account ownership. An authenticated tenant in us-east-1 can trigger a restore of any other customer's server snapshot in the same availability region, overwriting target disks.",
+  "exploit_request": "POST /api/infrastructure/snapshots/snp-883192/restore HTTP/1.1\nHost: console.hypercloud-vps.net\nAuthorization: Bearer 43|aa11bb22cc33dd44ee55ff66\nContent-Type: application/json\n\n{\"target_instance_id\": \"inst-001248\"}",
+  "corrected_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\ServerSnapshot;\n\nclass ServerSnapshotPolicy\n{\n    public function restore(User $user, ServerSnapshot $snapshot): bool\n    {\n        return $user->account_id === $snapshot->server->account_id\n            && $user->can('manage-infrastructure');\n    }\n}",
+  "severity": "CRITICAL",
+  "confidence": 0.95
+}

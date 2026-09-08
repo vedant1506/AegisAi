@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class IsProjectCollaboratorOrUnassigned(permissions.BasePermission):\n    def has_object_permission(self, request, view, obj):\n        if obj.team is None:\n            return True\n        return obj.team.members.filter(id=request.user.id).exists()\n\nclass ProjectBlueprintDetailView(generics.RetrieveAPIView):\n    queryset = ProjectBlueprint.objects.all()\n    serializer_class = BlueprintSerializer\n    permission_classes = [permissions.IsAuthenticated, IsProjectCollaboratorOrUnassigned]",
+  "diagnosis": "The permission class returns True whenever obj.team is None under the assumption that unassigned projects are public. This allows any authenticated user to view confidential pre-release blueprints that have not yet been assigned to a specific internal project team.",
+  "exploit_request": "GET /api/blueprints/109/ HTTP/1.1\nHost: dev.engineering.internal\nAuthorization: Bearer <external_contractor_jwt>",
+  "corrected_code": "class IsProjectCollaboratorOrUnassigned(permissions.BasePermission):\n    def has_object_permission(self, request, view, obj):\n        if obj.team is None:\n            return request.user.is_staff or obj.created_by == request.user\n        return obj.team.members.filter(id=request.user.id).exists()\n\nclass ProjectBlueprintDetailView(generics.RetrieveAPIView):\n    queryset = ProjectBlueprint.objects.all()\n    serializer_class = BlueprintSerializer\n    permission_classes = [permissions.IsAuthenticated, IsProjectCollaboratorOrUnassigned]",
+  "severity": "LOW",
+  "confidence": 0.84
+}

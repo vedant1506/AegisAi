@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\ndef download_patient_lab_pdf(request, report_uuid):\n    report = get_object_or_404(LaboratoryReport, uuid=report_uuid)\n    return FileResponse(\n        report.pdf_document.open('rb'),\n        content_type='application/pdf',\n        as_attachment=True,\n        filename=f\"lab_{report.accession_number}.pdf\"\n    )",
+  "diagnosis": "The view fetches LaboratoryReport by report_uuid from the URL and streams the PDF document to the client. It fails to verify that report.patient == request.user or that request.user is an assigned physician, exposing private medical diagnostic reports and pathology results.",
+  "exploit_request": "GET /records/laboratory/c720e3a4-9842-491a-b605-7289fcd18204/download/ HTTP/1.1\nHost: diagnostics.health.example\nCookie: sessionid=patient_session",
+  "corrected_code": "@login_required\ndef download_patient_lab_pdf(request, report_uuid):\n    report = get_object_or_404(LaboratoryReport, uuid=report_uuid)\n    is_patient = report.patient == request.user\n    is_attending_doctor = report.ordering_physician == request.user\n    if not (is_patient or is_attending_doctor):\n        raise PermissionDenied(\"Access to this diagnostic report is restricted.\")\n    return FileResponse(\n        report.pdf_document.open('rb'),\n        content_type='application/pdf',\n        as_attachment=True,\n        filename=f\"lab_{report.accession_number}.pdf\"\n    )",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

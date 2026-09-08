@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from django.contrib.sitemaps import Sitemap\nfrom .models import ClinicalPatientCase\n\nclass PatientCaseStudySitemap(Sitemap):\n    changefreq = 'monthly'\n    priority = 0.5\n\n    def items(self):\n        # Retrieves all clinical trial cases including restricted participant records\n        return ClinicalPatientCase.objects.all()\n\n    def location(self, item):\n        return f\"/clinical/cases/{item.uuid}/\"",
+  "diagnosis": "PatientCaseStudySitemap exposes every ClinicalPatientCase record regardless of whether it is an anonymized public study or a restricted confidential medical record. Attackers can harvest patient study UUIDs and inspect sensitive medical details and experimental drug trial results.",
+  "exploit_request": "GET /sitemap-patient-studies.xml HTTP/1.1\nHost: clinicaltrials.medicalresearch.org\nAccept: text/xml",
+  "corrected_code": "from django.contrib.sitemaps import Sitemap\nfrom .models import ClinicalPatientCase\n\nclass PatientCaseStudySitemap(Sitemap):\n    changefreq = 'monthly'\n    priority = 0.5\n\n    def items(self):\n        # Strictly publish only fully anonymized cases approved for public research distribution\n        return ClinicalPatientCase.objects.filter(is_anonymized=True, is_published_publicly=True)\n\n    def location(self, item):\n        return f\"/clinical/cases/{item.uuid}/\"",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

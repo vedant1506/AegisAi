@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "'use server';\n\nimport { auth } from '@/auth';\nimport { prisma } from '@/lib/prisma';\n\nexport async function dismissSecurityAlerts(alertIds: string[]) {\n  const session = await auth();\n  if (!session?.user) {\n    throw new Error('Unauthorized');\n  }\n\n  const result = await prisma.securityAlert.updateMany({\n    where: {\n      id: { in: alertIds }\n    },\n    data: {\n      status: 'DISMISSED',\n      dismissedAt: new Date()\n    }\n  });\n\n  return { count: result.count };\n}",
+  "diagnosis": "The Server Action allows authenticated users to dismiss alerts in bulk by passing an array of alertIds. However, prisma.securityAlert.updateMany does not scope the WHERE condition to the tenant or organization associated with session.user, allowing any authenticated user to dismiss and suppress security warnings across other organizations.",
+  "exploit_request": "POST /dashboard/alerts HTTP/1.1\nHost: security.monitoringhub.com\nCookie: authjs.session-token=<user_cookie>\nNext-Action: f4a89c201a\nContent-Type: application/json\n\n[\"alert_sec_01a\", \"alert_sec_02b\", \"alert_sec_99z\"]",
+  "corrected_code": "'use server';\n\nimport { auth } from '@/auth';\nimport { prisma } from '@/lib/prisma';\n\nexport async function dismissSecurityAlerts(alertIds: string[]) {\n  const session = await auth();\n  if (!session?.user) {\n    throw new Error('Unauthorized');\n  }\n\n  const result = await prisma.securityAlert.updateMany({\n    where: {\n      id: { in: alertIds },\n      organizationId: session.user.organizationId\n    },\n    data: {\n      status: 'DISMISSED',\n      dismissedAt: new Date()\n    }\n  });\n\n  return { count: result.count };\n}",
+  "severity": "LOW",
+  "confidence": 0.82
+}

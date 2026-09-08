@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.post('/api/security/:id/action', async (req, res) => {\n  const user = req.user;\n  const target = await SecurityPref.findById(req.params.id);\n  target.applyAction(req.body.actionData);\n  await target.save();\n  res.send('Done');\n});",
+  "diagnosis": "The code fetches the security target and applies an action, but fails to check if `target.userId === user.id`, resulting in BOLA.",
+  "exploit_request": "POST /api/security/500/action HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"actionData\": \"execute\"}",
+  "corrected_code": "app.post('/api/security/:id/action', async (req, res) => {\n  const user = req.user;\n  const target = await SecurityPref.findById(req.params.id);\n  if (target.userId.toString() !== user.id) return res.status(403).send('Forbidden');\n  target.applyAction(req.body.actionData);\n  await target.save();\n  res.send('Done');\n});"
+}

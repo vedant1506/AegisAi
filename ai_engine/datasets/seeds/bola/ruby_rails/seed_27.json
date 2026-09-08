@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class DocumentSyncChannel < ApplicationCable::Channel\n  def subscribed\n    document = Document.find(params[:document_id])\n    # Missing permission check: streams real-time collaborative keystrokes to any subscriber\n    stream_for document\n  end\nend",
+  "diagnosis": "DocumentSyncChannel looks up Document by ID and begins streaming diffs without verifying document collaboration rights. Any authenticated platform member can subscribe to private contracts and draft patents to monitor confidential text changes.",
+  "exploit_request": "{\"command\":\"subscribe\",\"identifier\":\"{\\\"channel\\\":\\\"DocumentSyncChannel\\\",\\\"document_id\\\":6192}\"}",
+  "corrected_code": "class DocumentSyncChannel < ApplicationCable::Channel\n  def subscribed\n    document = Document.find_by(id: params[:document_id])\n    reject unless document && current_user.can_view?(document)\n\n    stream_for document\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

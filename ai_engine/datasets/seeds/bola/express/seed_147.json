@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.get('/api/orders/invoice/:invoiceId', async (req, res) => {\n  const params = {\n    TableName: 'Invoices',\n    Key: { invoiceId: req.params.invoiceId }\n  };\n  const data = await dynamoDb.get(params).promise();\n  res.json(data.Item);\n});",
+  "diagnosis": "Retrieving an invoice from DynamoDB using the exact Key 'invoiceId'. Without checking the 'customerId' attribute on the returned Item against the authenticated user, an attacker can enumerate invoice IDs.",
+  "exploit_request": "GET /api/orders/invoice/INV-9921 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.get('/api/orders/invoice/:invoiceId', async (req, res) => {\n  const params = {\n    TableName: 'Invoices',\n    Key: { invoiceId: req.params.invoiceId }\n  };\n  const data = await dynamoDb.get(params).promise();\n  if (!data.Item || data.Item.customerId !== req.user.id) {\n    return res.status(403).send('Forbidden');\n  }\n  res.json(data.Item);\n});",
+  "severity": "LOW",
+  "confidence": 0.93
+}

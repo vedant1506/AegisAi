@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class AlertConsumer(AsyncJsonWebsocketConsumer):\n    async def receive_json(self, content):\n        if content.get('command') == 'dismiss_alert':\n            alert_id = content.get('alert_id')\n            await database_sync_to_async(\n                SecurityAlert.objects.filter(id=alert_id).update\n            )(is_dismissed=True)\n            await self.send_json({'status': 'dismissed', 'alert_id': alert_id})",
+  "diagnosis": "The WebSocket handler marks SecurityAlert as dismissed by alert_id received over the socket. It fails to scope the database update to user=self.scope['user'], allowing any connected user to dismiss critical security alerts belonging to other users.",
+  "exploit_request": "GET /ws/alerts/ HTTP/1.1\nHost: console.example.com\nUpgrade: websocket\nConnection: Upgrade\nCookie: sessionid=attacker_session\n\n{\"command\": \"dismiss_alert\", \"alert_id\": 84102}",
+  "corrected_code": "class AlertConsumer(AsyncJsonWebsocketConsumer):\n    async def receive_json(self, content):\n        if content.get('command') == 'dismiss_alert':\n            alert_id = content.get('alert_id')\n            updated = await database_sync_to_async(\n                SecurityAlert.objects.filter(id=alert_id, user=self.scope['user']).update\n            )(is_dismissed=True)\n            if not updated:\n                await self.send_json({'error': 'Alert not found or unauthorized'})\n                return\n            await self.send_json({'status': 'dismissed', 'alert_id': alert_id})",
+  "severity": "LOW",
+  "confidence": 0.88
+}

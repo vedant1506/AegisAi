@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class JobApplicationFilterSet(django_filters.FilterSet):\n    recruiter_id = django_filters.NumberFilter(field_name='job_posting__recruiter_id')\n\n    class Meta:\n        model = JobApplication\n        fields = ['recruiter_id', 'stage']\n\nclass JobApplicationListView(generics.ListAPIView):\n    queryset = JobApplication.objects.all()\n    serializer_class = JobApplicationSerializer\n    filter_backends = [DjangoFilterBackend]\n    filterset_class = JobApplicationFilterSet\n    permission_classes = [permissions.IsAuthenticated]",
+  "diagnosis": "The view exposes all JobApplication records using a global queryset and enables filtering by recruiter_id. Any authenticated candidate or external recruiter can list other recruiters' job applications, exposing resumes, salaries, and background check data.",
+  "exploit_request": "GET /api/recruiting/applications/?recruiter_id=31 HTTP/1.1\nHost: jobs.example.com\nAuthorization: Bearer <candidate_token>",
+  "corrected_code": "class JobApplicationFilterSet(django_filters.FilterSet):\n    class Meta:\n        model = JobApplication\n        fields = ['stage']\n\nclass JobApplicationListView(generics.ListAPIView):\n    serializer_class = JobApplicationSerializer\n    filter_backends = [DjangoFilterBackend]\n    filterset_class = JobApplicationFilterSet\n    permission_classes = [permissions.IsAuthenticated]\n\n    def get_queryset(self):\n        return JobApplication.objects.filter(job_posting__recruiter=self.request.user)",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

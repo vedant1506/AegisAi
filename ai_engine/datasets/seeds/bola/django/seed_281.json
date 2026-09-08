@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from django.contrib.sitemaps import Sitemap\nfrom .models import CustomerNDAContract\n\nclass SignedContractSitemap(Sitemap):\n    changefreq = 'never'\n    priority = 0.3\n\n    def items(self):\n        # Exposes all active signed customer contracts in public XML sitemap\n        return CustomerNDAContract.objects.filter(is_signed=True)\n\n    def location(self, item):\n        # Directly generates public download URL containing sequential IDs\n        return f\"/agreements/contracts/{item.id}/download/\"",
+  "diagnosis": "SignedContractSitemap publishes download URLs for confidential CustomerNDAContract instances in a sitemap. Search engine crawlers, competitors, and unauthenticated attackers can scrape the XML sitemap at /sitemaps/contracts.xml to enumerate contract primary keys and harvest executed agreements containing proprietary terms.",
+  "exploit_request": "GET /sitemaps/contracts.xml HTTP/1.1\nHost: portal.contractvault.com\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\nAccept: application/xml",
+  "corrected_code": "from django.contrib.sitemaps import Sitemap\nfrom .models import CustomerNDAContract\n\nclass SignedContractSitemap(Sitemap):\n    changefreq = 'never'\n    priority = 0.3\n\n    def items(self):\n        # Only expose boilerplate public templates; private client contracts must NEVER be listed in sitemaps\n        return CustomerNDAContract.objects.filter(is_signed=True, is_public_sample_template=True)\n\n    def location(self, item):\n        return f\"/agreements/public-templates/{item.slug}/\"",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

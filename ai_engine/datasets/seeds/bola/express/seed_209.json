@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const BeeQueue = require('bee-queue');\nconst watermarkQueue = new BeeQueue('pdf-watermarking', { isWorker: false });\n\nrouter.get('/api/documents/watermark-jobs/:jobId', jwtCheck, async (req, res) => {\n  const job = await watermarkQueue.getJob(req.params.jobId);\n  if (!job) return res.status(404).json({ error: 'Job not found' });\n  res.json({\n    progressPercent: job.progress,\n    sourceFileName: job.data.originalFileName,\n    fileSizeBytes: job.data.sizeBytes\n  });\n});",
+  "diagnosis": "The status endpoint queries Bee-Queue for document watermarking progress by jobId without checking if job.data.userId matches req.user.id. Any authenticated user can enumerate job IDs to monitor document processing and discover file names and sizes uploaded by other users.",
+  "exploit_request": "GET /api/documents/watermark-jobs/77819 HTTP/1.1\nHost: docprocess.corp.com\nAuthorization: Bearer <authenticated_user_jwt>",
+  "corrected_code": "const BeeQueue = require('bee-queue');\nconst watermarkQueue = new BeeQueue('pdf-watermarking', { isWorker: false });\n\nrouter.get('/api/documents/watermark-jobs/:jobId', jwtCheck, async (req, res) => {\n  const job = await watermarkQueue.getJob(req.params.jobId);\n  if (!job) return res.status(404).json({ error: 'Job not found' });\n  if (job.data.userId !== req.user.id) {\n    return res.status(403).json({ error: 'Access denied to target document job' });\n  }\n  res.json({\n    progressPercent: job.progress,\n    sourceFileName: job.data.originalFileName,\n    fileSizeBytes: job.data.sizeBytes\n  });\n});",
+  "severity": "LOW",
+  "confidence": 0.86
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from rest_framework.viewsets import ModelViewSet\nfrom rest_framework.permissions import IsAuthenticated\nfrom waffle.models import Sample\nfrom .serializers import WaffleSampleSerializer\n\nclass TrafficSampleViewSet(ModelViewSet):\n    permission_classes = [IsAuthenticated]\n    serializer_class = WaffleSampleSerializer\n    queryset = Sample.objects.all()\n\n    def perform_update(self, serializer):\n        # Updates sampling percentage directly on global traffic sample rule\n        serializer.save()",
+  "diagnosis": "TrafficSampleViewSet exposes CRUD operations on django-waffle Sample models to any authenticated user. An ordinary tenant user can update Sample instances to 100% or 0% traffic rate, altering runtime canary traffic distribution or disabling production telemetry collection.",
+  "exploit_request": "PATCH /api/waffle/samples/3/ HTTP/1.1\nHost: telemetry.infra.internal\nAuthorization: Bearer customer_user_token\nContent-Type: application/json\n\n{\n  \"percent\": 100.0\n}",
+  "corrected_code": "from rest_framework.viewsets import ModelViewSet\nfrom rest_framework.permissions import IsAdminUser\nfrom waffle.models import Sample\nfrom .serializers import WaffleSampleSerializer\n\nclass TrafficSampleViewSet(ModelViewSet):\n    # Restrict Sample modification to global staff administrators\n    permission_classes = [IsAdminUser]\n    serializer_class = WaffleSampleSerializer\n    queryset = Sample.objects.all()\n\n    def perform_update(self, serializer):\n        serializer.save()",
+  "severity": "MEDIUM",
+  "confidence": 0.84
+}

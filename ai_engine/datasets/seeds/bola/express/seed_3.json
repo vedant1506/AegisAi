@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.put('/api/users/:id/password', async (req, res) => {\n  const user = await db.User.findByPk(req.params.id);\n  user.password = hash(req.body.newPassword);\n  await user.save();\n  res.send('Password updated');\n});",
+  "diagnosis": "The application allows updating a password by specifying the user ID in the path, lacking authorization checks to ensure the user is modifying their own password.",
+  "exploit_request": "PUT /api/users/1/password HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"newPassword\": \"hacked\"}",
+  "corrected_code": "app.put('/api/users/:id/password', async (req, res) => {\n  if (req.user.id !== parseInt(req.params.id)) return res.status(403).send('Forbidden');\n  const user = await db.User.findByPk(req.params.id);\n  user.password = hash(req.body.newPassword);\n  await user.save();\n  res.send('Password updated');\n});"
+}

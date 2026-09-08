@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.post('/api/payments/default', async (req, res) => {\n  const methodId = req.body.method_id;\n  await pgClient.query('UPDATE payment_methods SET is_default = false WHERE user_id = $1', [req.user.id]);\n  await pgClient.query('UPDATE payment_methods SET is_default = true WHERE id = $1', [methodId]);\n  res.send('Default updated');\n});",
+  "diagnosis": "Two raw SQL queries are used to set a default payment method. The first correctly scopes to the user, but the second updates a specific method by ID without verifying that the method actually belongs to the user.",
+  "exploit_request": "POST /api/payments/default HTTP/1.1\nHost: api.example.com\nContent-Type: application/json\nAuthorization: Bearer <attacker_token>\n\n{\"method_id\": 999}",
+  "corrected_code": "app.post('/api/payments/default', async (req, res) => {\n  const methodId = req.body.method_id;\n  await pgClient.query('UPDATE payment_methods SET is_default = false WHERE user_id = $1', [req.user.id]);\n  const res = await pgClient.query('UPDATE payment_methods SET is_default = true WHERE id = $1 AND user_id = $2', [methodId, req.user.id]);\n  if (res.rowCount === 0) return res.status(403).send();\n  res.send('Default updated');\n});",
+  "severity": "LOW",
+  "confidence": 0.89
+}

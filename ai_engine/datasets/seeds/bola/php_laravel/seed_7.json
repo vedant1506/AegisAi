@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\Beneficiary;\n\nclass BeneficiaryPolicy\n{\n    public function delete(User $user, Beneficiary $beneficiary): bool\n    {\n        // Faulty boolean operator: uses OR instead of AND, allowing any user to delete unlocked records\n        return $beneficiary->status !== 'locked' || $user->id === $beneficiary->user_id;\n    }\n}",
+  "diagnosis": "The BeneficiaryPolicy contains an inverted boolean logic error in its delete check. Because the expression returns true whenever $beneficiary->status !== 'locked', the condition evaluates to true for all non-locked beneficiaries regardless of whether the requesting user owns the beneficiary account, enabling arbitrary account deletion.",
+  "exploit_request": "DELETE /api/v1/beneficiaries/9102 HTTP/1.1\nHost: online.crestviewbank.com\nAuthorization: Bearer 64|abcdef1234567890abcdef1234567890\nAccept: application/json",
+  "corrected_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\Beneficiary;\n\nclass BeneficiaryPolicy\n{\n    public function delete(User $user, Beneficiary $beneficiary): bool\n    {\n        return $user->id === $beneficiary->user_id && $beneficiary->status !== 'locked';\n    }\n}",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

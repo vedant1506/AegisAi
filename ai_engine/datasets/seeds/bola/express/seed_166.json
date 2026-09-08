@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@Controller('api/v2/webhooks')\n@UseGuards(ApiKeyAuthGuard)\nexport class WebhookConfigController {\n  constructor(@Inject('DRIZZLE') private readonly db: DrizzleClient) {}\n\n  @Delete(':webhookId')\n  async removeWebhook(@Param('webhookId') webhookId: string) {\n    const result = await this.db.delete(webhooksTable)\n      .where(eq(webhooksTable.id, webhookId))\n      .returning();\n    if (result.length === 0) throw new NotFoundException('Webhook not found');\n    return { deleted: true, webhookId };\n  }\n}",
+  "diagnosis": "The controller deletes webhook registrations matching the URL path parameter webhookId without constraining the query by the calling API key's organizationId. Any client with a valid API key can delete webhooks belonging to competitor organizations.",
+  "exploit_request": "DELETE /api/v2/webhooks/wh_live_a89bc271 HTTP/1.1\nHost: api.developerplatform.io\nX-API-Key: live_pk_attacker_key_99",
+  "corrected_code": "@Controller('api/v2/webhooks')\n@UseGuards(ApiKeyAuthGuard)\nexport class WebhookConfigController {\n  constructor(@Inject('DRIZZLE') private readonly db: DrizzleClient) {}\n\n  @Delete(':webhookId')\n  async removeWebhook(@Param('webhookId') webhookId: string, @Req() req: RequestWithApiKey) {\n    const result = await this.db.delete(webhooksTable)\n      .where(and(eq(webhooksTable.id, webhookId), eq(webhooksTable.orgId, req.auth.orgId)))\n      .returning();\n    if (result.length === 0) throw new ForbiddenException('Webhook not found or access denied');\n    return { deleted: true, webhookId };\n  }\n}",
+  "severity": "MEDIUM",
+  "confidence": 0.93
+}

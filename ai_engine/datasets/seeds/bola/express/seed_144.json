@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "router.param('orderId', async (req, res, next, id) => {\n  req.order = await Order.findById(id);\n  next();\n});\n\nrouter.get('/orders/:orderId/status', (req, res) => {\n  res.send({ status: req.order.status });\n});",
+  "diagnosis": "An Express router.param middleware loads the Order object and attaches it to the request. The subsequent route handler serves the order status without checking if req.order.owner === req.user.id, resulting in BOLA.",
+  "exploit_request": "GET /orders/8831/status HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "router.param('orderId', async (req, res, next, id) => {\n  const order = await Order.findById(id);\n  if (!order) return res.status(404).send();\n  if (order.owner !== req.user.id) return res.status(403).send();\n  req.order = order;\n  next();\n});\n\nrouter.get('/orders/:orderId/status', (req, res) => {\n  res.send({ status: req.order.status });\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.97
+}

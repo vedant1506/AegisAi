@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "export const expenseRouter = router({\n  getExpenseDetails: protectedProcedure\n    .input(z.object({ expenseId: z.number().int() }))\n    .query(async ({ input, ctx }) => {\n      const record = await ctx.knex('expense_claims')\n        .where('id', input.expenseId)\n        .first();\n      if (!record) throw new TRPCError({ code: 'NOT_FOUND' });\n      return record;\n    }),\n});",
+  "diagnosis": "Knex query retrieves an expense claim by id without checking employee_id === ctx.user.employeeId. Any authenticated employee can query colleagues' expense claim amounts, vendor receipts, and reimbursement bank account numbers.",
+  "exploit_request": "POST /trpc/expense.getExpenseDetails?batch=1 HTTP/1.1\nHost: expenses.corp.internal\nContent-Type: application/json\nCookie: session=employee_session\n\n{\"0\": {\"expenseId\": 4091}}",
+  "corrected_code": "export const expenseRouter = router({\n  getExpenseDetails: protectedProcedure\n    .input(z.object({ expenseId: z.number().int() }))\n    .query(async ({ input, ctx }) => {\n      const record = await ctx.knex('expense_claims')\n        .where({ id: input.expenseId, employee_id: ctx.user.employeeId })\n        .first();\n      if (!record) throw new TRPCError({ code: 'FORBIDDEN', message: 'Access to target expense claim denied' });\n      return record;\n    }),\n});",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

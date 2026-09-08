@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from rest_framework import generics, permissions\nfrom knox.models import AuthToken\nfrom .serializers import KnoxSessionMetadataSerializer\n\nclass KnoxSessionDetailView(generics.RetrieveAPIView):\n    permission_classes = [permissions.IsAuthenticated]\n    serializer_class = KnoxSessionMetadataSerializer\n    queryset = AuthToken.objects.all()\n\n    def get_object(self):\n        token_id = self.kwargs.get(\"pk\")\n        # Fetches AuthToken directly by primary key from global queryset\n        return generics.get_object_or_404(self.queryset, pk=token_id)",
+  "diagnosis": "KnoxSessionDetailView exposes active session details (such as token expiration timestamps, IP address metadata, and user agent info) via AuthToken primary key lookup. Because get_object() uses the unscoped queryset AuthToken.objects.all() without filtering by request.user, any authenticated user can enumerate token IDs to inspect session activity and device signatures of other accounts across the system.",
+  "exploit_request": "GET /api/auth/sessions/529/ HTTP/1.1\nHost: portal.enterprisegw.net\nAuthorization: Token 84a7e930...\nAccept: application/json",
+  "corrected_code": "from rest_framework import generics, permissions\nfrom knox.models import AuthToken\nfrom .serializers import KnoxSessionMetadataSerializer\n\nclass KnoxSessionDetailView(generics.RetrieveAPIView):\n    permission_classes = [permissions.IsAuthenticated]\n    serializer_class = KnoxSessionMetadataSerializer\n\n    def get_queryset(self):\n        # Scope session query to tokens owned by the authenticated user\n        return AuthToken.objects.filter(user=self.request.user)",
+  "severity": "LOW",
+  "confidence": 0.88
+}

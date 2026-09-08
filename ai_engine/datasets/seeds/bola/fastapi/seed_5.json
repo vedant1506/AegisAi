@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "@app.get('/api/subscriptions')\ndef get_subscription(user_id: int, db: Session = Depends(get_db)):\n    sub = db.query(Subscription).filter(Subscription.user_id == user_id).first()\n    return sub",
+  "diagnosis": "The endpoint accepts a user_id via query parameters and returns that user's subscription details without verifying if the parameter matches the authenticated user's ID.",
+  "exploit_request": "GET /api/subscriptions?user_id=100 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "@app.get('/api/subscriptions')\ndef get_subscription(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):\n    # Use current_user.id directly instead of relying on client input\n    sub = db.query(Subscription).filter(Subscription.user_id == current_user.id).first()\n    return sub"
+}

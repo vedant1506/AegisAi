@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.delete('/api/cart/:itemId', (req, res) => {\n  db('cart_items')\n    .where('id', req.params.itemId)\n    .del()\n    .then(() => res.send('Item removed'))\n    .catch(err => res.status(500).send(err.message));\n});",
+  "diagnosis": "The endpoint removes an item from a shopping cart based on the URL parameter using Knex.js query builder. It deletes the record unconditionally without verifying if the cart item belongs to the authenticated user's cart.",
+  "exploit_request": "DELETE /api/cart/1524 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.delete('/api/cart/:itemId', (req, res) => {\n  db('cart_items')\n    .where({ id: req.params.itemId, user_id: req.user.id })\n    .del()\n    .then(count => count ? res.send('Item removed') : res.status(404).send('Not found'))\n    .catch(err => res.status(500).send(err.message));\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.92
+}

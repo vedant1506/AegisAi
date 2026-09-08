@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get(\"/users/activity-summary\")\ndef get_user_activity(\n    target_user_id: int = Query(...),\n    token: TokenPayload = Security(verify_token_scopes, scopes=[\"profile:view\"]),\n    db: Session = Depends(get_db)\n):\n    activity = db.query(UserActivityLog).filter(UserActivityLog.user_id == target_user_id).all()\n    return {\"user_id\": target_user_id, \"logs\": activity}",
+  "diagnosis": "The endpoint requires the 'profile:view' OAuth2 scope, but allows passing any target_user_id via query parameters without confirming that target_user_id equals token.user_id. An OAuth application granted permission to view the authorizing user's profile can scrape full activity histories for any user on the platform.",
+  "exploit_request": "GET /users/activity-summary?target_user_id=4091 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <oauth_token>",
+  "corrected_code": "@router.get(\"/users/activity-summary\")\ndef get_user_activity(\n    target_user_id: int = Query(...),\n    token: TokenPayload = Security(verify_token_scopes, scopes=[\"profile:view\"]),\n    db: Session = Depends(get_db)\n):\n    if target_user_id != token.user_id and not token.is_admin:\n        raise HTTPException(status_code=403, detail=\"Cannot view activity logs of other users\")\n    activity = db.query(UserActivityLog).filter(UserActivityLog.user_id == target_user_id).all()\n    return {\"user_id\": target_user_id, \"logs\": activity}",
+  "severity": "MEDIUM",
+  "confidence": 0.88
+}

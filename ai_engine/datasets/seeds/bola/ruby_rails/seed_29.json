@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class SmartMeterChannel < ApplicationCable::Channel\n  def subscribed\n    # Binds directly to meter serial without verifying user's utility account owns it\n    stream_from \"meter_telemetry_#{params[:meter_serial]}\"\n  end\nend",
+  "diagnosis": "SmartMeterChannel provides telemetry updates without verifying whether current_user is the billing account holder for the requested meter_serial. Any subscriber can monitor real-time electric power and water consumption patterns of neighboring households.",
+  "exploit_request": "{\"command\":\"subscribe\",\"identifier\":\"{\\\"channel\\\":\\\"SmartMeterChannel\\\",\\\"meter_serial\\\":\\\"MTR-99812-US\\\"}\"}",
+  "corrected_code": "class SmartMeterChannel < ApplicationCable::Channel\n  def subscribed\n    meter = current_user.smart_meters.find_by(serial_number: params[:meter_serial])\n    reject unless meter\n\n    stream_from \"meter_telemetry_#{meter.serial_number}\"\n  end\nend",
+  "severity": "MEDIUM",
+  "confidence": 0.86
+}

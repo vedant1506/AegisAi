@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "auditor_router = APIRouter(\n    prefix=\"/auditing\",\n    dependencies=[Depends(require_internal_auditor)]\n)\n\n@auditor_router.get(\"/audit/expenses/{expense_id}\")\ndef view_audited_expense(\n    expense_id: int,\n    auditor: AuditorUser = Depends(get_current_auditor),\n    db: Session = Depends(get_db)\n):\n    expense = db.query(EmployeeExpense).filter(EmployeeExpense.id == expense_id).first()\n    if not expense:\n        raise HTTPException(status_code=404, detail=\"Expense record not found\")\n    return expense",
+  "diagnosis": "The route checks that the user holds the internal auditor role, but fails to enforce departmental or division scoping on the queried expense. An auditor assigned exclusively to retail division audits can inspect executive compensation and confidential R&D project expenditures.",
+  "exploit_request": "GET /auditing/audit/expenses/4491 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <retail_auditor_jwt>",
+  "corrected_code": "auditor_router = APIRouter(\n    prefix=\"/auditing\",\n    dependencies=[Depends(require_internal_auditor)]\n)\n\n@auditor_router.get(\"/audit/expenses/{expense_id}\")\ndef view_audited_expense(\n    expense_id: int,\n    auditor: AuditorUser = Depends(get_current_auditor),\n    db: Session = Depends(get_db)\n):\n    expense = db.query(EmployeeExpense).filter(\n        EmployeeExpense.id == expense_id,\n        EmployeeExpense.division_id == auditor.assigned_division_id\n    ).first()\n    if not expense:\n        raise HTTPException(status_code=404, detail=\"Expense record not found or outside assigned division\")\n    return expense",
+  "severity": "MEDIUM",
+  "confidence": 0.9
+}

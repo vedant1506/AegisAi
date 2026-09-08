@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from rest_framework.views import APIView\nfrom rest_framework.response import Response\nfrom rest_framework.permissions import IsAuthenticated\nfrom django.shortcuts import get_object_or_404\nfrom .models import SecureFolderNode\n\nclass FolderBreadcrumbView(APIView):\n    permission_classes = [IsAuthenticated]\n\n    def get(self, request, node_id):\n        node = get_object_or_404(SecureFolderNode, id=node_id)\n        ancestors = node.get_ancestors(include_self=True)\n        breadcrumbs = [{\"id\": a.id, \"name\": a.name} for a in ancestors]\n        return Response({\"breadcrumbs\": breadcrumbs})",
+  "diagnosis": "The view looks up SecureFolderNode by node_id and calls node.get_ancestors() without verifying that request.user has read permission on node or its workspace, leaking directory hierarchy and folder names of other tenants.",
+  "exploit_request": "GET /api/documents/folders/7412/breadcrumbs/ HTTP/1.1\nHost: files.cloudenterprise.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "from rest_framework.views import APIView\nfrom rest_framework.response import Response\nfrom rest_framework.permissions import IsAuthenticated\nfrom django.shortcuts import get_object_or_404\nfrom .models import SecureFolderNode\n\nclass FolderBreadcrumbView(APIView):\n    permission_classes = [IsAuthenticated]\n\n    def get(self, request, node_id):\n        node = get_object_or_404(SecureFolderNode, id=node_id, workspace=request.user.workspace)\n        ancestors = node.get_ancestors(include_self=True)\n        breadcrumbs = [{\"id\": a.id, \"name\": a.name} for a in ancestors]\n        return Response({\"breadcrumbs\": breadcrumbs})",
+  "severity": "LOW",
+  "confidence": 0.81
+}

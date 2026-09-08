@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class CollaborativeDocumentConsumer(AsyncWebsocketConsumer):\n    async def connect(self):\n        self.doc_id = self.scope['url_route']['kwargs']['doc_id']\n        await self.channel_layer.group_add(f\"doc_{self.doc_id}\", self.channel_name)\n        await self.accept()\n        await self.send(text_data=json.dumps({'status': 'connected', 'doc_id': self.doc_id}))",
+  "diagnosis": "Upon connection to /ws/docs/{doc_id}/, the consumer connects the socket to the document's collaboration group and accepts the connection without verifying that self.scope['user'] has read or edit permissions for that document. Any user can join and receive real-time edits to private documents.",
+  "exploit_request": "GET /ws/docs/4921/ HTTP/1.1\nHost: docs.example.com\nUpgrade: websocket\nConnection: Upgrade\nCookie: sessionid=attacker_session",
+  "corrected_code": "class CollaborativeDocumentConsumer(AsyncWebsocketConsumer):\n    async def connect(self):\n        user = self.scope.get('user')\n        if not user or not user.is_authenticated:\n            await self.close()\n            return\n        self.doc_id = self.scope['url_route']['kwargs']['doc_id']\n        can_access = await database_sync_to_async(\n            Document.objects.filter(id=self.doc_id, collaborators=user).exists\n        )()\n        if not can_access:\n            await self.close()\n            return\n        await self.channel_layer.group_add(f\"doc_{self.doc_id}\", self.channel_name)\n        await self.accept()\n        await self.send(text_data=json.dumps({'status': 'connected', 'doc_id': self.doc_id}))",
+  "severity": "MEDIUM",
+  "confidence": 0.93
+}

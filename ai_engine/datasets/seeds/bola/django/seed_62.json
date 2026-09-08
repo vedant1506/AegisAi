@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class FinancialAccountType(DjangoObjectType):\n    class Meta:\n        model = FinancialAccount\n        fields = ('id', 'account_number', 'account_type')\n\n    transaction_record = graphene.Field(TransactionType, transaction_id=graphene.Int(required=True))\n\n    def resolve_transaction_record(self, info, transaction_id):\n        return BankTransaction.objects.get(id=transaction_id)",
+  "diagnosis": "The nested field resolver on FinancialAccountType takes transaction_id as an argument and performs a global query on BankTransaction without constraining the lookup to the parent financial account instance (self) or info.context.user, allowing clients to query any user's financial transactions.",
+  "exploit_request": "POST /graphql/ HTTP/1.1\nHost: api.fintech.example\nCookie: sessionid=customer_session\nContent-Type: application/json\n\n{\"query\": \"query { myAccount { id transactionRecord(transactionId: 99401) { id amount counterparty memo } } }\"}",
+  "corrected_code": "class FinancialAccountType(DjangoObjectType):\n    class Meta:\n        model = FinancialAccount\n        fields = ('id', 'account_number', 'account_type')\n\n    transaction_record = graphene.Field(TransactionType, transaction_id=graphene.Int(required=True))\n\n    def resolve_transaction_record(self, info, transaction_id):\n        user = info.context.user\n        if not user.is_authenticated or self.owner != user:\n            raise GraphQLError(\"Access denied.\")\n        return self.transactions.filter(id=transaction_id).first()",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

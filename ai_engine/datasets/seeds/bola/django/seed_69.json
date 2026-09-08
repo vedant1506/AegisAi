@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\n@require_POST\ndef delete_shipping_address(request):\n    address_id = request.POST.get('address_id')\n    DeliveryAddress.objects.filter(id=address_id).delete()\n    messages.info(request, \"Delivery address removed.\")\n    return redirect('customer_addresses')",
+  "diagnosis": "The view processes an address deletion by extracting address_id from request.POST and executing a delete query without filtering by customer=request.user. Any authenticated customer can delete delivery addresses belonging to arbitrary users.",
+  "exploit_request": "POST /account/addresses/delete/ HTTP/1.1\nHost: store.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/x-www-form-urlencoded\n\naddress_id=741",
+  "corrected_code": "@login_required\n@require_POST\ndef delete_shipping_address(request):\n    address_id = request.POST.get('address_id')\n    deleted_count, _ = DeliveryAddress.objects.filter(id=address_id, customer=request.user).delete()\n    if not deleted_count:\n        raise PermissionDenied(\"Address not found or unauthorized.\")\n    messages.info(request, \"Delivery address removed.\")\n    return redirect('customer_addresses')",
+  "severity": "LOW",
+  "confidence": 0.89
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const { Queue } = require('bullmq');\nconst campaignQueue = new Queue('marketing-campaigns', { connection: redisConn });\n\napp.post('/api/campaigns/jobs/:jobId/retry', requireSession, async (req, res) => {\n  const job = await campaignQueue.getJob(req.params.jobId);\n  if (!job) return res.status(404).json({ error: 'Campaign job not found' });\n  await job.retry();\n  res.json({ success: true, retriedJobId: job.id });\n});",
+  "diagnosis": "An endpoint triggers a retry on a marketing email campaign job in BullMQ without verifying if job.data.tenantId matches req.user.tenantId. Attackers can re-trigger large email campaigns belonging to other organizations, consuming their SendGrid/SES credits and spamming their subscriber lists.",
+  "exploit_request": "POST /api/campaigns/jobs/job_camp_blast_99014/retry HTTP/1.1\nHost: crm.outreach.io\nCookie: session_id=tenant_attacker",
+  "corrected_code": "const { Queue } = require('bullmq');\nconst campaignQueue = new Queue('marketing-campaigns', { connection: redisConn });\n\napp.post('/api/campaigns/jobs/:jobId/retry', requireSession, async (req, res) => {\n  const job = await campaignQueue.getJob(req.params.jobId);\n  if (!job) return res.status(404).json({ error: 'Campaign job not found' });\n  if (job.data.tenantId !== req.user.tenantId) {\n    return res.status(403).json({ error: 'Forbidden: campaign job belongs to another organization' });\n  }\n  await job.retry();\n  res.json({ success: true, retriedJobId: job.id });\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.9
+}

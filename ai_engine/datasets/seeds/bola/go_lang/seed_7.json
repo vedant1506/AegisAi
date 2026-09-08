@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package services\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/models\"\n)\n\ntype PayrollService struct {\n\tDB *gorm.DB\n}\n\nfunc (s *PayrollService) GetPayrollStub(ctx context.Context, stubID uint) (*models.PayrollRecord, error) {\n\tvar record models.PayrollRecord\n\n\t// BOLA: GORM First() locates record solely by primary key 'stubID'\n\t// without filtering by the requesting employee's tenant or organization ID.\n\tif err := s.DB.WithContext(ctx).First(&record, \"id = ?\", stubID).Error; err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn &record, nil\n}\n",
+  "diagnosis": "The GetPayrollStub method queries GORM using only the primary key stubID without constraining by the tenant_id of the requesting employee. In a multi-tenant payroll application, an employee from Company A can query payroll stubs belonging to Company B, exposing gross salaries, tax deductions, and bank routing numbers.",
+  "exploit_request": "GET /api/payroll/records/pay_9941 HTTP/1.1\nHost: payroll.workforce-hr.com\nAuthorization: Bearer emp_token_tenant10\nAccept: application/json",
+  "corrected_code": "package services\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/auth\"\n\t\"myapp/models\"\n)\n\ntype PayrollService struct {\n\tDB *gorm.DB\n}\n\nfunc (s *PayrollService) GetPayrollStub(ctx context.Context, stubID uint) (*models.PayrollRecord, error) {\n\tvar record models.PayrollRecord\n\ttenantID := auth.TenantIDFromContext(ctx)\n\n\tif err := s.DB.WithContext(ctx).\n\t\tWhere(\"tenant_id = ? AND id = ?\", tenantID, stubID).\n\t\tFirst(&record).Error; err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn &record, nil\n}\n",
+  "severity": "CRITICAL",
+  "confidence": 0.95
+}

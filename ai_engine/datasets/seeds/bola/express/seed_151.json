@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.get('/api/orders/download', (req, res) => {\n  Order.findOne({ _id: req.query.id }, (err, order) => {\n    if (err || !order) return res.status(404).send();\n    res.download(order.invoiceFilePath);\n  });\n});",
+  "diagnosis": "Callback-based Mongoose query fetches an order by ID from the query string and triggers a file download for the invoice. No check is performed to see if the order belongs to req.session.userId.",
+  "exploit_request": "GET /api/orders/download?id=victim_order_id HTTP/1.1\nHost: api.example.com\nCookie: session=attacker_cookie",
+  "corrected_code": "app.get('/api/orders/download', (req, res) => {\n  Order.findOne({ _id: req.query.id, userId: req.session.userId }, (err, order) => {\n    if (err || !order) return res.status(404).send();\n    res.download(order.invoiceFilePath);\n  });\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.94
+}

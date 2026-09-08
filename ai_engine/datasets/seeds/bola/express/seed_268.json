@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "import fastifyHttpProxy from '@fastify/http-proxy';\n\nfastify.register(fastifyHttpProxy, {\n  upstream: process.env.K8S_MANAGEMENT_SERVICE,\n  prefix: '/k8s/clusters/:clusterId',\n  preHandler: [fastify.authenticate],\n  rewritePrefix: '/api/v1/k8s'\n});",
+  "diagnosis": "Fastify HTTP proxy mounts downstream Kubernetes cluster management endpoints under /k8s/clusters/:clusterId. While fastify.authenticate verifies that the caller is logged in, the proxy mounts directly without validating that the authenticated user has cluster RBAC access on the target clusterId. Any user can proxy API calls to execute commands or inspect pods in other tenants' Kubernetes clusters.",
+  "exploit_request": "GET /k8s/clusters/cls_prod_enterprise_99/pods HTTP/1.1\nHost: cloud.devopsportal.io\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "import fastifyHttpProxy from '@fastify/http-proxy';\n\nfastify.register(fastifyHttpProxy, {\n  upstream: process.env.K8S_MANAGEMENT_SERVICE,\n  prefix: '/k8s/clusters/:clusterId',\n  preHandler: [\n    fastify.authenticate,\n    async (request, reply) => {\n      const { clusterId } = request.params;\n      const grant = await prisma.clusterAccessGrant.findFirst({\n        where: { clusterId, userId: request.user.id }\n      });\n      if (!grant) {\n        return reply.status(403).send({ error: 'Forbidden: no access grant for this Kubernetes cluster' });\n      }\n    }\n  ],\n  rewritePrefix: '/api/v1/k8s'\n});",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

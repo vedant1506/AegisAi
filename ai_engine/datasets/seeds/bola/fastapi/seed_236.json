@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get(\"/admin/tenants/{tenant_id}/export-ddl\")\nasync def export_tenant_ddl(\n    tenant_id: str,\n    exporter: SchemaExporter = Depends(get_schema_exporter),\n    current_user: User = Depends(get_current_user)\n):\n    ddl_script = await exporter.generate_schema_ddl(f\"tenant_{tenant_id}\")\n    return PlainTextResponse(ddl_script, media_type=\"text/x-sql\")",
+  "diagnosis": "The DDL export endpoint generates and returns complete SQL schema definitions (including custom table structures, triggers, and stored procedures) for tenant_{tenant_id}. Because it lacks validation that tenant_id == current_user.tenant_id, any authenticated user can export the proprietary database schema of any other tenant.",
+  "exploit_request": "GET /admin/tenants/corp_fintech_secure/export-ddl HTTP/1.1\nHost: admin.saasdb.net\nAuthorization: Bearer <unauthorized_jwt>",
+  "corrected_code": "@router.get(\"/admin/tenants/{tenant_id}/export-ddl\")\nasync def export_tenant_ddl(\n    tenant_id: str,\n    exporter: SchemaExporter = Depends(get_schema_exporter),\n    current_user: User = Depends(get_current_user)\n):\n    if tenant_id != current_user.tenant_id and not current_user.is_platform_admin:\n        raise HTTPException(status_code=403, detail=\"Forbidden: unauthorized to export DDL for target tenant\")\n    ddl_script = await exporter.generate_schema_ddl(f\"tenant_{tenant_id}\")\n    return PlainTextResponse(ddl_script, media_type=\"text/x-sql\")",
+  "severity": "MEDIUM",
+  "confidence": 0.9
+}

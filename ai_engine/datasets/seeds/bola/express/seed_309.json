@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const express = require('express');\nconst router = express.Router();\nconst { DeviceToken } = require('../models');\n\nrouter.delete('/api/notifications/apns/:deviceToken', authenticateUser, async (req, res) => {\n  const { deviceToken } = req.params;\n\n  const deleted = await DeviceToken.destroy({\n    where: { token: deviceToken, provider: 'APNS' }\n  });\n\n  if (!deleted) {\n    return res.status(404).json({ error: 'Token not found' });\n  }\n\n  return res.json({ success: true, token: deviceToken });\n});",
+  "diagnosis": "The APNs unregistration route deletes device push tokens by token string from the URL path. Although the route requires user authentication, it does not verify that the target device token is owned by req.user.id. An attacker can deregister other users' Apple push tokens, silencing incoming alerts and causing denial of service.",
+  "exploit_request": "DELETE /api/notifications/apns/apns_hex_token_victim_device_77810 HTTP/1.1\nHost: api.chatnetwork.io\nAuthorization: Bearer <attacker_jwt>\nContent-Length: 0",
+  "corrected_code": "const express = require('express');\nconst router = express.Router();\nconst { DeviceToken } = require('../models');\n\nrouter.delete('/api/notifications/apns/:deviceToken', authenticateUser, async (req, res) => {\n  const { deviceToken } = req.params;\n\n  const deleted = await DeviceToken.destroy({\n    where: { token: deviceToken, provider: 'APNS', userId: req.user.id }\n  });\n\n  if (!deleted) {\n    return res.status(403).json({ error: 'Token not found or unauthorized' });\n  }\n\n  return res.json({ success: true, token: deviceToken });\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.91
+}

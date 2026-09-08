@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "@app.delete('/api/keys/{key_id}')\ndef delete_api_key(key_id: int, db: Session = Depends(get_db)):\n    db.query(ApiKey).filter(ApiKey.id == key_id).delete()\n    db.commit()\n    return {\"status\": \"deleted\"}",
+  "diagnosis": "An API key can be deleted by providing its ID, but there is no validation to ensure the key belongs to the user making the request.",
+  "exploit_request": "DELETE /api/keys/50 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "@app.delete('/api/keys/{key_id}')\ndef delete_api_key(key_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):\n    key = db.query(ApiKey).filter(ApiKey.id == key_id, ApiKey.owner_id == current_user.id).first()\n    if not key:\n        raise HTTPException(status_code=403, detail=\"Forbidden\")\n    db.delete(key)\n    db.commit()\n    return {\"status\": \"deleted\"}"
+}

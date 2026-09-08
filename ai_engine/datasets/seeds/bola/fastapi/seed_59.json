@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class SessionManagerServicer(auth_pb2_grpc.SessionServiceServicer):\n    async def TerminateSession(self, request, context):\n        caller = await get_session_caller(context)\n        redis_client = get_redis_connection()\n        deleted = await redis_client.delete(f\"sess:{request.session_id}\")\n        return auth_pb2.TerminateResponse(terminated=bool(deleted))",
+  "diagnosis": "The gRPC servicer terminates a session token in Redis by request.session_id without checking whether the session being terminated belongs to caller.user_id. An authenticated caller can invalidate other users' active sessions, causing widespread denial of service.",
+  "exploit_request": "POST /auth.SessionService/TerminateSession HTTP/2.0\nHost: grpc.example.com\nContent-Type: application/grpc\nTE: trailers\nauthorization: Bearer <attacker_token>\n\n[gRPC payload: session_id: \"sess_tok_991823\"]",
+  "corrected_code": "class SessionManagerServicer(auth_pb2_grpc.SessionServiceServicer):\n    async def TerminateSession(self, request, context):\n        caller = await get_session_caller(context)\n        redis_client = get_redis_connection()\n        raw_sess = await redis_client.get(f\"sess:{request.session_id}\")\n        if not raw_sess:\n            return auth_pb2.TerminateResponse(terminated=False)\n        sess_data = json.loads(raw_sess)\n        if sess_data.get(\"user_id\") != caller.user_id:\n            await context.abort(grpc.StatusCode.PERMISSION_DENIED, \"Cannot terminate another user's session\")\n        deleted = await redis_client.delete(f\"sess:{request.session_id}\")\n        return auth_pb2.TerminateResponse(terminated=bool(deleted))",
+  "severity": "LOW",
+  "confidence": 0.84
+}

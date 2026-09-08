@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from rest_framework.generics import RetrieveAPIView\nfrom rest_framework import permissions\nfrom .models import CustomAPIToken\nfrom .serializers import CustomAPITokenSerializer\n\nclass TokenDetailInspectView(RetrieveAPIView):\n    queryset = CustomAPIToken.objects.all()\n    serializer_class = CustomAPITokenSerializer\n    permission_classes = [permissions.IsAuthenticated]\n    lookup_field = 'key'",
+  "diagnosis": "The RetrieveAPIView uses CustomAPIToken.objects.all() with lookup_field = 'key' without overriding get_queryset() to filter by request.user. Any authenticated developer who discovers or brute-forces token keys can inspect the associated user ID, rate limit tiers, IP allowlists, and assigned resource scopes of other accounts.",
+  "exploit_request": "GET /api/tokens/inspect/9a44b10f88214de7c10b/ HTTP/1.1\nHost: dev.apihub.net\nAuthorization: Token 102948bbcaef091a",
+  "corrected_code": "from rest_framework.generics import RetrieveAPIView\nfrom rest_framework import permissions\nfrom .models import CustomAPIToken\nfrom .serializers import CustomAPITokenSerializer\n\nclass TokenDetailInspectView(RetrieveAPIView):\n    serializer_class = CustomAPITokenSerializer\n    permission_classes = [permissions.IsAuthenticated]\n    lookup_field = 'key'\n\n    def get_queryset(self):\n        return CustomAPIToken.objects.filter(user=self.request.user)",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.post('/api/avatars/upload-policy')\ndef create_avatar_upload_policy(\n    payload: AvatarUploadRequest,\n    s3: Any = Depends(get_s3_client),\n    current_user: User = Depends(get_current_user)\n):\n    s3_key = f\"avatars/user_{payload.user_id}.png\"\n    policy = s3.generate_presigned_post(\n        Bucket=settings.S3_AVATARS_BUCKET,\n        Key=s3_key,\n        Fields={\"acl\": \"public-read\", \"Content-Type\": \"image/png\"},\n        Conditions=[[\"content-length-range\", 100, 5242880]],\n        ExpiresIn=600\n    )\n    return {\"upload_policy\": policy, \"target_key\": s3_key}",
+  "diagnosis": "The handler generates a presigned S3 POST policy for uploading a user avatar using the user_id provided in the JSON request body. It fails to validate that the provided user_id matches current_user.id, allowing an attacker to overwrite another user's avatar image.",
+  "exploit_request": "POST /api/avatars/upload-policy HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"user_id\": 1}",
+  "corrected_code": "@router.post('/api/avatars/upload-policy')\ndef create_avatar_upload_policy(\n    payload: AvatarUploadRequest,\n    s3: Any = Depends(get_s3_client),\n    current_user: User = Depends(get_current_user)\n):\n    s3_key = f\"avatars/user_{current_user.id}.png\"\n    policy = s3.generate_presigned_post(\n        Bucket=settings.S3_AVATARS_BUCKET,\n        Key=s3_key,\n        Fields={\"acl\": \"public-read\", \"Content-Type\": \"image/png\"},\n        Conditions=[[\"content-length-range\", 100, 5242880]],\n        ExpiresIn=600\n    )\n    return {\"upload_policy\": policy, \"target_key\": s3_key}",
+  "severity": "CRITICAL",
+  "confidence": 0.94
+}

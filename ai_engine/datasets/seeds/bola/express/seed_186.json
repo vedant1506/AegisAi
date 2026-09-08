@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');\nconst s3 = new S3Client({});\n\nexports.handler = async (event) => {\n  const targetUserId = event.pathParameters.userId;\n  await s3.send(new DeleteObjectCommand({\n    Bucket: process.env.AVATARS_BUCKET,\n    Key: `profiles/${targetUserId}.png`\n  }));\n  return { statusCode: 200, body: JSON.stringify({ message: 'Profile avatar removed successfully' }) };\n};",
+  "diagnosis": "The Lambda handler deletes an avatar image from S3 based on the targetUserId provided in the path parameters without comparing targetUserId to the authenticated user's ID (event.requestContext.authorizer.claims.sub). Any user can delete other users' avatars.",
+  "exploit_request": "DELETE /users/usr_victim_99182/avatar HTTP/1.1\nHost: api.socialnetwork.aws\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');\nconst s3 = new S3Client({});\n\nexports.handler = async (event) => {\n  const targetUserId = event.pathParameters.userId;\n  const authenticatedUserId = event.requestContext.authorizer.claims.sub;\n  if (targetUserId !== authenticatedUserId) {\n    return { statusCode: 403, body: JSON.stringify({ error: 'Cannot delete avatar of another user' }) };\n  }\n  await s3.send(new DeleteObjectCommand({\n    Bucket: process.env.AVATARS_BUCKET,\n    Key: `profiles/${targetUserId}.png`\n  }));\n  return { statusCode: 200, body: JSON.stringify({ message: 'Profile avatar removed successfully' }) };\n};",
+  "severity": "LOW",
+  "confidence": 0.9
+}

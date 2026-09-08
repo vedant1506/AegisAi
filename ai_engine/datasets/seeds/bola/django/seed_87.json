@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\ndef download_confidential_page_attachment(request, page_id, doc_id):\n    page = get_object_or_404(Page, id=page_id).specific\n    doc = page.confidential_documents.get(id=doc_id)\n    return FileResponse(doc.file.open('rb'), as_attachment=True, filename=doc.filename)",
+  "diagnosis": "The view downloads a confidential document attached to a Wagtail Page. It never evaluates Wagtail's page permissions (page.permissions_for_user(request.user).can_view_revisions() or active page restrictions), letting any logged-in user download restricted documents attached to unviewable pages.",
+  "exploit_request": "GET /wagtail/pages/901/attachments/44/download/ HTTP/1.1\nHost: portal.corp.example\nCookie: sessionid=attacker_session",
+  "corrected_code": "@login_required\ndef download_confidential_page_attachment(request, page_id, doc_id):\n    page = get_object_or_404(Page, id=page_id).specific\n    page_perms = page.permissions_for_user(request.user)\n    restriction = page.get_view_restrictions().first()\n    if restriction and not restriction.accept_runner(request):\n        raise PermissionDenied(\"You do not have clearance to view this restricted page.\")\n    doc = get_object_or_404(page.confidential_documents, id=doc_id)\n    return FileResponse(doc.file.open('rb'), as_attachment=True, filename=doc.filename)",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

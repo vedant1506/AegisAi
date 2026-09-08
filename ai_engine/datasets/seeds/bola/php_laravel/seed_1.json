@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "namespace App\\Http\\Controllers;\n\nuse App\\Models\\Invoice;\nuse Illuminate\\Http\\Request;\nuse Barryvdh\\DomPDF\\Facade\\Pdf;\n\nclass InvoiceController extends Controller\n{\n    public function download(Request $request, Invoice $invoice)\n    {\n        // Route model binding resolves $invoice solely by primary key id\n        // without scoping to the authenticated user's organization\n        $pdf = Pdf::loadView('invoices.receipt', [\n            'invoice' => $invoice,\n            'items' => $invoice->items\n        ]);\n\n        return $pdf->download(\"invoice-{$invoice->invoice_number}.pdf\");\n    }\n}",
+  "diagnosis": "The download action relies on default Laravel route-model binding for the Invoice model without verifying tenant or user ownership. Any authenticated customer can download billing receipts, customer tax identifiers, and itemized fee schedules belonging to other organizations by changing the invoice ID in the URL.",
+  "exploit_request": "GET /api/v1/invoices/8842/download HTTP/1.1\nHost: billing.saasplatform.com\nAuthorization: Bearer 14|q9U01jP482zLmNopXyZaBCdeFGhiJKLM\nAccept: application/pdf",
+  "corrected_code": "namespace App\\Http\\Controllers;\n\nuse App\\Models\\Invoice;\nuse Illuminate\\Http\\Request;\nuse Barryvdh\\DomPDF\\Facade\\Pdf;\n\nclass InvoiceController extends Controller\n{\n    public function download(Request $request, Invoice $invoice)\n    {\n        $this->authorize('view', $invoice);\n\n        $pdf = Pdf::loadView('invoices.receipt', [\n            'invoice' => $invoice,\n            'items' => $invoice->items\n        ]);\n\n        return $pdf->download(\"invoice-{$invoice->invoice_number}.pdf\");\n    }\n}",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

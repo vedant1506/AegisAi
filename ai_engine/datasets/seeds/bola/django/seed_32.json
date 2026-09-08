@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class TicketAdmin(admin.ModelAdmin):\n    def save_formset(self, request, form, formset, change):\n        instances = formset.save(commit=False)\n        for instance in instances:\n            if isinstance(instance, TicketAttachment):\n                instance.uploaded_by = request.user\n            instance.save()\n        formset.save_m2m()",
+  "diagnosis": "The admin inline formset save logic saves newly added or edited TicketAttachment objects without ensuring that form.instance (the parent Ticket) belongs to the support tier or company domain managed by the staff user, enabling cross-tenant attachment binding.",
+  "exploit_request": "POST /admin/support/ticket/9901/change/ HTTP/1.1\nHost: staff.example.com\nCookie: sessionid=staff_session\nContent-Type: application/x-www-form-urlencoded\n\nattachments-0-file=exploit.pdf&attachments-TOTAL_FORMS=1&attachments-INITIAL_FORMS=0",
+  "corrected_code": "class TicketAdmin(admin.ModelAdmin):\n    def save_formset(self, request, form, formset, change):\n        if not self.has_change_permission(request, form.instance):\n            raise PermissionDenied()\n        instances = formset.save(commit=False)\n        for instance in instances:\n            if isinstance(instance, TicketAttachment):\n                instance.uploaded_by = request.user\n            instance.save()\n        formset.save_m2m()",
+  "severity": "LOW",
+  "confidence": 0.85
+}

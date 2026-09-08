@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class SurveillanceCameraConsumer(WebsocketConsumer):\n    def connect(self):\n        self.camera_id = self.scope['url_route']['kwargs']['camera_id']\n        self.camera = SecurityCamera.objects.get(id=self.camera_id)\n        self.accept()\n        self.stream_active = True\n        self.start_streaming()",
+  "diagnosis": "In connect(), the consumer loads SecurityCamera by camera_id directly from the URL route kwargs and begins streaming live video. It lacks an authorization check against self.scope['user'], allowing any authenticated user to view private surveillance feeds.",
+  "exploit_request": "GET /ws/cameras/cam-401/feed/ HTTP/1.1\nHost: security.example.com\nUpgrade: websocket\nConnection: Upgrade\nCookie: sessionid=attacker_session",
+  "corrected_code": "class SurveillanceCameraConsumer(WebsocketConsumer):\n    def connect(self):\n        user = self.scope.get('user')\n        if not user or not user.is_authenticated:\n            self.close()\n            return\n        self.camera_id = self.scope['url_route']['kwargs']['camera_id']\n        try:\n            self.camera = SecurityCamera.objects.get(id=self.camera_id, facility__owner=user)\n        except SecurityCamera.DoesNotExist:\n            self.close()\n            return\n        self.accept()\n        self.stream_active = True\n        self.start_streaming()",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

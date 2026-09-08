@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class CustomerInvoiceDetailView(APIView):\n    permission_classes = [permissions.IsAuthenticated, IsInvoiceOwner]\n\n    def get(self, request, invoice_id):\n        invoice = Invoice.objects.get(id=invoice_id)\n        serializer = InvoiceDetailSerializer(invoice)\n        return Response(serializer.data)",
+  "diagnosis": "CustomerInvoiceDetailView inherits from APIView and queries Invoice.objects.get(id=invoice_id) directly. Unlike GenericAPIView's get_object(), APIView does not automatically invoke has_object_permission() on its permission_classes unless self.check_object_permissions(request, invoice) is explicitly called. Consequently, IsInvoiceOwner is bypassed entirely.",
+  "exploit_request": "GET /api/v1/invoices/99201/ HTTP/1.1\nHost: billing.example.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "class CustomerInvoiceDetailView(APIView):\n    permission_classes = [permissions.IsAuthenticated, IsInvoiceOwner]\n\n    def get(self, request, invoice_id):\n        invoice = get_object_or_404(Invoice, id=invoice_id)\n        self.check_object_permissions(request, invoice)\n        serializer = InvoiceDetailSerializer(invoice)\n        return Response(serializer.data)",
+  "severity": "HIGH",
+  "confidence": 0.97
+}

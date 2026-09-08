@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from django.contrib.sitemaps import Sitemap\nfrom .models import CustomerIncidentPostmortem\n\nclass SupportIncidentSitemap(Sitemap):\n    changefreq = 'weekly'\n    priority = 0.4\n\n    def items(self):\n        # Returns closed incidents without verifying public disclosure status\n        return CustomerIncidentPostmortem.objects.filter(status='RESOLVED')\n\n    def location(self, item):\n        return f\"/support/incidents/{item.incident_number}/summary/\"",
+  "diagnosis": "SupportIncidentSitemap iterates over CustomerIncidentPostmortem records where status='RESOLVED' and publishes them to an open XML sitemap. Many resolved incidents contain internal customer outage reports, security vulnerability details, and sensitive system architecture diagrams meant only for the affected corporate client.",
+  "exploit_request": "GET /sitemap-incidents.xml HTTP/1.1\nHost: status-portal.cloudinfra.com\nAccept: application/xml",
+  "corrected_code": "from django.contrib.sitemaps import Sitemap\nfrom .models import CustomerIncidentPostmortem\n\nclass SupportIncidentSitemap(Sitemap):\n    changefreq = 'weekly'\n    priority = 0.4\n\n    def items(self):\n        # Restrict items exclusively to incidents explicitly marked for public transparency\n        return CustomerIncidentPostmortem.objects.filter(status='RESOLVED', is_public_disclosure=True)\n\n    def location(self, item):\n        return f\"/support/incidents/{item.incident_number}/summary/\"",
+  "severity": "MEDIUM",
+  "confidence": 0.86
+}

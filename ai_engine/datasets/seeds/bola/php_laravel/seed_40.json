@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "namespace App\\Filament\\Pages;\n\nuse App\\Models\\BrandSetting;\nuse Filament\\Pages\\Page;\nuse Illuminate\\Http\\Request;\n\nclass ManageBrandingSettings extends Page\n{\n    protected static ?string $navigationIcon = 'heroicon-o-paint-brush';\n    public ?int $brandId = null;\n    public ?BrandSetting $brandSetting = null;\n\n    public function mount(Request $request): void\n    {\n        // Binds brand setting directly from query param without asserting tenant ownership\n        $this->brandId = (int) $request->query('brand_id');\n        $this->brandSetting = BrandSetting::find($this->brandId);\n    }\n}",
+  "diagnosis": "The Filament custom setting page accepts an arbitrary brand_id parameter in mount() and loads the BrandSetting model without confirming that the setting belongs to the authenticated tenant. An administrator can load and overwrite white-label styling assets and portal logos of other tenants on the shared cluster.",
+  "exploit_request": "GET /admin/manage-branding-settings?brand_id=14 HTTP/1.1\nHost: app.whitelabel-crm.io\nCookie: filament_session=eyJhbGciOi...tenant11\nAccept: text/html",
+  "corrected_code": "namespace App\\Filament\\Pages;\n\nuse App\\Models\\BrandSetting;\nuse Filament\\Pages\\Page;\nuse Filament\\Facades\\Filament;\n\nclass ManageBrandingSettings extends Page\n{\n    protected static ?string $navigationIcon = 'heroicon-o-paint-brush';\n    public ?BrandSetting $brandSetting = null;\n\n    public function mount(): void\n    {\n        $tenant = Filament::getTenant();\n        $this->brandSetting = $tenant->brandSetting ?? BrandSetting::create(['tenant_id' => $tenant->id]);\n    }\n}",
+  "severity": "LOW",
+  "confidence": 0.82
+}

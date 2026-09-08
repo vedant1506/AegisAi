@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const resolvers = {\n  Mutation: {\n    cancelOrder: async (parent, args, context) => {\n      const order = await Order.findByPk(args.orderId);\n      order.status = 'cancelled';\n      await order.save();\n      return order;\n    }\n  }\n};",
+  "diagnosis": "GraphQL mutation to cancel an order fetches the order by ID and mutates its status. It does not enforce that the authenticated user is the one who placed the order.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: api.example.com\nContent-Type: application/json\nAuthorization: Bearer <attacker_token>\n\n{\"query\": \"mutation { cancelOrder(orderId: 1024) { id status } }\"}",
+  "corrected_code": "const resolvers = {\n  Mutation: {\n    cancelOrder: async (parent, args, context) => {\n      const order = await Order.findByPk(args.orderId);\n      if (order.customerId !== context.user.id) throw new Error('Not authorized');\n      order.status = 'cancelled';\n      await order.save();\n      return order;\n    }\n  }\n};",
+  "severity": "MEDIUM",
+  "confidence": 0.94
+}

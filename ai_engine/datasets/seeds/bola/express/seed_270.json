@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "router.post('/api/unleash/features/check', checkSession, async (req, res) => {\n  const { tenantId, featureNames } = req.body;\n\n  const results = {};\n  for (const name of featureNames) {\n    results[name] = unleashClient.isEnabled(name, {\n      tenantId: tenantId,\n      properties: { tenant: tenantId }\n    });\n  }\n\n  res.json({ tenantId, features: results });\n});",
+  "diagnosis": "The Unleash feature flag proxy evaluates feature flag states using tenantId supplied in the POST body without verifying that req.user belongs to tenantId. Any authenticated user can enumerate rollout status of unreleased features and entitlements across all enterprise tenants.",
+  "exploit_request": "POST /api/unleash/features/check HTTP/1.1\nHost: flags.saasapp.com\nAuthorization: Bearer <user_jwt>\nContent-Type: application/json\n\n{\"tenantId\": \"tenant_secret_partner_2026\", \"featureNames\": [\"ai_data_extractor_v2\", \"unlimited_api_rate\"]}",
+  "corrected_code": "router.post('/api/unleash/features/check', checkSession, async (req, res) => {\n  const { featureNames } = req.body;\n  const verifiedTenantId = req.user.tenantId;\n\n  const results = {};\n  for (const name of featureNames) {\n    results[name] = unleashClient.isEnabled(name, {\n      tenantId: verifiedTenantId,\n      properties: { tenant: verifiedTenantId }\n    });\n  }\n\n  res.json({ tenantId: verifiedTenantId, features: results });\n});",
+  "severity": "LOW",
+  "confidence": 0.87
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.post('/api/payments/link-card', async (req, res) => {\n  const user = await User.findByPk(req.body.userId);\n  await user.addPaymentCard(req.body.cardToken);\n  res.send('Card Linked');\n});",
+  "diagnosis": "The endpoint allows a user to link a payment card. However, it reads the target 'userId' from the request body instead of relying on the authenticated session's user ID, allowing an attacker to link cards to other accounts or modify their payment methods.",
+  "exploit_request": "POST /api/payments/link-card HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"userId\": 1, \"cardToken\": \"tok_123\"}",
+  "corrected_code": "app.post('/api/payments/link-card', async (req, res) => {\n  const user = await User.findByPk(req.user.id);\n  await user.addPaymentCard(req.body.cardToken);\n  res.send('Card Linked');\n});",
+  "severity": "HIGH",
+  "confidence": 0.98
+}

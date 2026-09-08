@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "# Embedded analytics sub-application mounted at: app.mount(\"/embedded/analytics\", analytics_app)\nanalytics_app = FastAPI()\n\n@analytics_app.get(\"/reports/{report_id}/raw\")\nasync def get_raw_report_data(\n    report_id: int,\n    db: Session = Depends(get_db)\n):\n    report = db.query(AnalyticsReport).filter(AnalyticsReport.id == report_id).first()\n    if not report:\n        raise HTTPException(status_code=404, detail=\"Report not found\")\n    return {\"report_id\": report_id, \"data\": report.raw_dataset}",
+  "diagnosis": "The mounted analytics sub-application serves raw metric datasets by report_id. Because it omits user authentication and tenant boundary checks, any requester can download confidential analytical reports, conversion stats, and proprietary business metrics belonging to other accounts.",
+  "exploit_request": "GET /embedded/analytics/reports/2194/raw HTTP/1.1\nHost: bi.app.io",
+  "corrected_code": "# Embedded analytics sub-application mounted at: app.mount(\"/embedded/analytics\", analytics_app)\nanalytics_app = FastAPI()\n\n@analytics_app.get(\"/reports/{report_id}/raw\")\nasync def get_raw_report_data(\n    report_id: int,\n    db: Session = Depends(get_db),\n    current_user: User = Depends(get_current_user)\n):\n    report = db.query(AnalyticsReport).filter(\n        AnalyticsReport.id == report_id,\n        AnalyticsReport.organization_id == current_user.organization_id\n    ).first()\n    if not report:\n        raise HTTPException(status_code=404, detail=\"Report not found or access denied\")\n    return {\"report_id\": report_id, \"data\": report.raw_dataset}",
+  "severity": "MEDIUM",
+  "confidence": 0.91
+}

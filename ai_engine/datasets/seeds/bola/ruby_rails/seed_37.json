@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Billing::InvoicesController < ApplicationController\n  def create\n    # Strong parameters permit organization_id, allowing tenant reassignment\n    @invoice = Invoice.new(invoice_params)\n    if @invoice.save\n      render json: @invoice, status: :created\n    else\n      render json: @invoice.errors, status: :unprocessable_entity\n    end\n  end\n\n  private\n\n  def invoice_params\n    params.require(:invoice).permit(:amount, :due_date, :client_id, :organization_id)\n  end\nend",
+  "diagnosis": "The invoice_params method permits organization_id from HTTP request payloads. An attacker can create fraudulent billing invoices attached to other organizations, routing payouts or charging expenses to victim tenant accounts.",
+  "exploit_request": "POST /api/billing/invoices HTTP/1.1\nHost: billing.saas-platform.com\nAuthorization: Bearer contractor_token_49\nContent-Type: application/json\n\n{\"invoice\": {\"amount\": 9500.00, \"due_date\": \"2026-10-01\", \"organization_id\": 88}}",
+  "corrected_code": "class Billing::InvoicesController < ApplicationController\n  def create\n    @invoice = current_organization.invoices.build(invoice_params)\n    if @invoice.save\n      render json: @invoice, status: :created\n    else\n      render json: @invoice.errors, status: :unprocessable_entity\n    end\n  end\n\n  private\n\n  def invoice_params\n    params.require(:invoice).permit(:amount, :due_date, :client_id)\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}
