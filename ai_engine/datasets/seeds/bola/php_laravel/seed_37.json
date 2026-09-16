@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "namespace App\\Nova;\n\nuse App\\Models\\CorporateInvoice;\nuse Laravel\\Nova\\Http\\Requests\\NovaRequest;\nuse Laravel\\Nova\\Resource;\n\nclass InvoiceNovaResource extends Resource\n{\n    public static $model = CorporateInvoice::class;\n\n    // Fails to restrict invoice queries for non-superadmin portal users\n    public static function indexQuery(NovaRequest $request, $query)\n    {\n        return $query;\n    }\n}",
+  "diagnosis": "The Laravel Nova resource indexQuery fails to filter invoice records by the company identifier of the authenticated staff user. Unless an operator is a platform super-admin, back-office users must only view invoices from their assigned company; here, index and global search expose financial records from all corporate clients.",
+  "exploit_request": "GET /nova-api/invoices?search=Acme+Corp HTTP/1.1\nHost: nova.fincloud-billing.com\nCookie: nova_session=eyJsYXJhdmVsIjoiY29tcGFueV91c2VyIn0=\nAccept: application/json",
+  "corrected_code": "namespace App\\Nova;\n\nuse App\\Models\\CorporateInvoice;\nuse Laravel\\Nova\\Http\\Requests\\NovaRequest;\nuse Laravel\\Nova\\Resource;\n\nclass InvoiceNovaResource extends Resource\n{\n    public static $model = CorporateInvoice::class;\n\n    public static function indexQuery(NovaRequest $request, $query)\n    {\n        if ($request->user()->isSuperAdmin()) {\n            return $query;\n        }\n\n        return $query->where('company_id', $request->user()->company_id);\n    }\n}",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

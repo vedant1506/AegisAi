@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package crm\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/models\"\n)\n\ntype LeadManager struct {\n\tDB *gorm.DB\n}\n\nfunc (m *LeadManager) FetchLeadDetails(ctx context.Context, leadID string) (*models.SalesLead, error) {\n\tvar lead models.SalesLead\n\n\t// BOLA: Locating sales lead directly by leadID without filtering by tenant_account_id.\n\tif err := m.DB.WithContext(ctx).First(&lead, \"lead_id = ?\", leadID).Error; err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn &lead, nil\n}\n",
+  "diagnosis": "The FetchLeadDetails method queries GORM for a sales lead using only the lead_id string. In this shared database model, leads across distinct commercial clients are stored in the same table. A sales agent from one tenant can view competitor leads, contact emails, deal sizes, and contract negotiation stages.",
+  "exploit_request": "GET /crm/leads/lead_77341 HTTP/1.1\nHost: enterprise-crm.cloudapp.net\nAuthorization: Bearer rep_token_acme\nAccept: application/json",
+  "corrected_code": "package crm\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/auth\"\n\t\"myapp/models\"\n)\n\ntype LeadManager struct {\n\tDB *gorm.DB\n}\n\nfunc (m *LeadManager) FetchLeadDetails(ctx context.Context, leadID string) (*models.SalesLead, error) {\n\tvar lead models.SalesLead\n\ttenantAccountID := auth.GetTenantAccountID(ctx)\n\n\tif err := m.DB.WithContext(ctx).\n\t\tWhere(\"lead_id = ? AND tenant_account_id = ?\", leadID, tenantAccountID).\n\t\tFirst(&lead).Error; err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn &lead, nil\n}\n",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

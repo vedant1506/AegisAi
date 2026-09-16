@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "router.delete('/api/auth/token-family/:familyId/revoke', requireAuth, async (req, res) => {\n  const { familyId } = req.params;\n\n  const deletedCount = await RefreshTokenFamily.destroy({\n    where: { id: familyId }\n  });\n\n  if (!deletedCount) {\n    return res.status(404).json({ message: 'Token family not found' });\n  }\n\n  return res.json({ success: true, revokedFamilyId: familyId });\n});",
+  "diagnosis": "The endpoint revokes an entire RFC 6819 token family (used for session invalidation on token reuse) matching familyId. While requireAuth ensures the caller is logged in, the SQL query does not check where: { id: familyId, userId: req.user.id }. An authenticated attacker can enumerate family IDs to terminate all active sessions and refresh tokens of other users.",
+  "exploit_request": "DELETE /api/auth/token-family/fam_session_992140/revoke HTTP/1.1\nHost: api.authservice.io\nAuthorization: Bearer <attacker_jwt>\nContent-Length: 0",
+  "corrected_code": "router.delete('/api/auth/token-family/:familyId/revoke', requireAuth, async (req, res) => {\n  const { familyId } = req.params;\n\n  const deletedCount = await RefreshTokenFamily.destroy({\n    where: { id: familyId, userId: req.user.id }\n  });\n\n  if (!deletedCount) {\n    return res.status(403).json({ message: 'Token family not found or access denied' });\n  }\n\n  return res.json({ success: true, revokedFamilyId: familyId });\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.92
+}

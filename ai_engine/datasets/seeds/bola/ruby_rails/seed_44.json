@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Imaging::ScansController < ApplicationController\n  def view_blob\n    # Resolves signed blob id and issues direct redirect without verifying patient/practitioner authorization\n    blob = ActiveStorage::Blob.find_signed!(params[:signed_id])\n    redirect_to rails_blob_url(blob, disposition: 'inline')\n  end\nend",
+  "diagnosis": "The view_blob action resolves ActiveStorage::Blob using signed_id and redirects to the underlying storage URL without verifying that current_user has medical authorization to inspect the scan's parent record. Attackers possessing or enumerating signed tokens can access confidential MRI and CT DICOM diagnostic images.",
+  "exploit_request": "GET /api/imaging/scans/view?signed_id=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJa... HTTP/1.1\nHost: pacs.hospital-radiology.org\nAuthorization: Bearer unprivileged_user_token\nAccept: */*",
+  "corrected_code": "class Imaging::ScansController < ApplicationController\n  def view_blob\n    blob = ActiveStorage::Blob.find_signed!(params[:signed_id])\n    scan = MedicalScan.find_by!(dicom_blob_id: blob.id)\n    authorize scan, :view?\n\n    redirect_to rails_blob_url(blob, disposition: 'inline')\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.95
+}

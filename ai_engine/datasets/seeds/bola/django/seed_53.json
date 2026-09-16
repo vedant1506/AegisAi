@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ClinicalTrialRecordViewSet(viewsets.ModelViewSet):\n    queryset = ClinicalTrialRecord.objects.all()\n    serializer_class = ClinicalTrialRecordSerializer\n    permission_classes = [permissions.IsAuthenticated, DjangoObjectPermissions]",
+  "diagnosis": "The viewset relies on DRF's DjangoObjectPermissions with an unscoped ClinicalTrialRecord.objects.all() queryset. By design in DRF, DjangoObjectPermissions has an empty permission map for safe methods (GET, HEAD, OPTIONS), meaning object-level read permissions are never checked by django-guardian. Any authenticated user can enumerate and read all confidential clinical trial records.",
+  "exploit_request": "GET /api/trials/records/8041/ HTTP/1.1\nHost: clinical.pharma.example\nAuthorization: Bearer <unauthorized_user_token>",
+  "corrected_code": "class StrictDjangoObjectPermissions(DjangoObjectPermissions):\n    perms_map = {\n        **DjangoObjectPermissions.perms_map,\n        'GET': ['%(app_label)s.view_%(model_name)s'],\n        'OPTIONS': ['%(app_label)s.view_%(model_name)s'],\n        'HEAD': ['%(app_label)s.view_%(model_name)s'],\n    }\n\nclass ClinicalTrialRecordViewSet(viewsets.ModelViewSet):\n    queryset = ClinicalTrialRecord.objects.all()\n    serializer_class = ClinicalTrialRecordSerializer\n    permission_classes = [permissions.IsAuthenticated, StrictDjangoObjectPermissions]",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

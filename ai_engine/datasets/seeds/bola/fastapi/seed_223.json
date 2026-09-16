@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "# Legacy API sub-application mounted at parent: app.mount(\"/legacy-v1\", legacy_app)\nlegacy_app = FastAPI()\n\n@legacy_app.get(\"/invoices/{invoice_number}\")\nasync def get_legacy_invoice(\n    invoice_number: str,\n    db: Session = Depends(get_db)\n):\n    invoice = db.query(Invoice).filter(Invoice.invoice_number == invoice_number).first()\n    if not invoice:\n        raise HTTPException(status_code=404, detail=\"Invoice not found\")\n    return invoice",
+  "diagnosis": "The legacy sub-application mounted under /legacy-v1 shares the parent database session dependency but lacks authentication and tenant scoping. Any client can request arbitrary invoice numbers without authentication and retrieve billing totals and customer records.",
+  "exploit_request": "GET /legacy-v1/invoices/INV-2024-8842 HTTP/1.1\nHost: billing.enterprise.com\nAuthorization: Bearer <customer_token>",
+  "corrected_code": "# Legacy API sub-application mounted at parent: app.mount(\"/legacy-v1\", legacy_app)\nlegacy_app = FastAPI()\n\n@legacy_app.get(\"/invoices/{invoice_number}\")\nasync def get_legacy_invoice(\n    invoice_number: str,\n    db: Session = Depends(get_db),\n    current_user: User = Depends(get_current_user)\n):\n    invoice = db.query(Invoice).filter(\n        Invoice.invoice_number == invoice_number,\n        Invoice.customer_id == current_user.customer_id\n    ).first()\n    if not invoice:\n        raise HTTPException(status_code=404, detail=\"Invoice not found or access denied\")\n    return invoice",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

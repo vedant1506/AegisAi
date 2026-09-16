@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Ability\n  include CanCan::Ability\n\n  def initialize(user)\n    return unless user.present?\n\n    can :create, RefundRequest, order: { user_id: user.id }\n    # Flaw: update permits modifying any pending refund request regardless of order ownership\n    can :update, RefundRequest, order: { status: 'pending' }\n  end\nend\n\nclass Returns::RefundsController < ApplicationController\n  def update\n    @refund = RefundRequest.find(params[:id])\n    authorize! :update, @refund\n\n    @refund.update!(refund_params)\n    render json: @refund\n  end\nend",
+  "diagnosis": "The Ability rule for :update on RefundRequest checks that order status is pending but fails to check order: { user_id: user.id }. Any customer can alter refund payout amounts and recipient account numbers on pending return claims submitted by other shoppers.",
+  "exploit_request": "PATCH /api/returns/refunds/ref_4410 HTTP/1.1\nHost: store.ecommerce-cloud.com\nAuthorization: Bearer buyer_token_109\nContent-Type: application/json\n\n{\"refund_amount\": 1200.00, \"payout_destination\": \"attacker@drop.com\"}",
+  "corrected_code": "class Ability\n  include CanCan::Ability\n\n  def initialize(user)\n    return unless user.present?\n\n    can :create, RefundRequest, order: { user_id: user.id }\n    can :update, RefundRequest, order: { user_id: user.id, status: 'pending' }\n  end\nend\n\nclass Returns::RefundsController < ApplicationController\n  def update\n    @refund = RefundRequest.find(params[:id])\n    authorize! :update, @refund\n\n    @refund.update!(refund_params)\n    render json: @refund\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.92
+}

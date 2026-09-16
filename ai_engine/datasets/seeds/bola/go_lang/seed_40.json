@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package graph\n\nimport (\n\t\"context\"\n\t\"myapp/graph/model\"\n)\n\nfunc (r *QueryResolver) ProjectSourceRepository(ctx context.Context, repoID string) (*model.Repository, error) {\n\t// BOLA: Queries repository connection and deploy keys by repoID without verifying user project membership.\n\trepo, err := r.RepoStore.GetRepository(ctx, repoID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn repo, nil\n}\n",
+  "diagnosis": "The ProjectSourceRepository GraphQL resolver returns Git repository details, including deploy keys and webhook secrets, based solely on the repoID argument. Any authenticated platform user can query internal source repository credentials for repositories belonging to other companies.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: gitops.developer-cloud.net\nAuthorization: Bearer dev_user_token_33\nContent-Type: application/json\n\n{\"query\": \"query { projectSourceRepository(repoId: \\\"repo_corp_internal_44\\\") { id gitUrl deployKey webhookSecret } }\"}",
+  "corrected_code": "package graph\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"myapp/auth\"\n\t\"myapp/graph/model\"\n)\n\nfunc (r *QueryResolver) ProjectSourceRepository(ctx context.Context, repoID string) (*model.Repository, error) {\n\tuserID := auth.GetUserID(ctx)\n\thasAccess, err := r.RepoStore.UserHasAccess(ctx, repoID, userID)\n\tif err != nil || !hasAccess {\n\t\treturn nil, errors.New(\"access denied: user does not have access to this repository\")\n\t}\n\n\trepo, err := r.RepoStore.GetRepository(ctx, repoID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn repo, nil\n}\n",
+  "severity": "HIGH",
+  "confidence": 0.92
+}

@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "@app.post('/api/orders/{order_id}/cancel')\ndef cancel_order(order_id: int, db: Session = Depends(get_db)):\n    order = db.query(Order).filter(Order.id == order_id).first()\n    order.status = 'CANCELLED'\n    db.commit()\n    return order",
+  "diagnosis": "The endpoint allows cancelling an order using the order_id from the URL path. It does not enforce object-level authorization to verify ownership of the order.",
+  "exploit_request": "POST /api/orders/9921/cancel HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "@app.post('/api/orders/{order_id}/cancel')\ndef cancel_order(order_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):\n    order = db.query(Order).filter(Order.id == order_id, Order.user_id == current_user.id).first()\n    if not order:\n        raise HTTPException(status_code=404, detail=\"Not Found\")\n    order.status = 'CANCELLED'\n    db.commit()\n    return order"
+}

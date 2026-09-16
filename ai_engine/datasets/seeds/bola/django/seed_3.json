@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "def download_report(request):\n    report_id = request.GET.get('report_id')\n    report = Report.objects.get(id=report_id)\n    return HttpResponse(report.file_data, content_type='application/pdf')",
+  "diagnosis": "The endpoint retrieves a report document based on a query parameter without verifying if the authenticated user has authorization to access the specific report ID.",
+  "exploit_request": "GET /api/reports/download?report_id=5 HTTP/1.1\nHost: api.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "def download_report(request):\n    report_id = request.GET.get('report_id')\n    report = get_object_or_404(Report, id=report_id, account=request.user.account)\n    return HttpResponse(report.file_data, content_type='application/pdf')"
+}

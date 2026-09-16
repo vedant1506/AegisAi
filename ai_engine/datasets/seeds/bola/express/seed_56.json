@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "router.param('id', async (req, res, next, id) => {\n  req.item = await Profile.findById(id);\n  next();\n});\nrouter.post('/profile/:id/process', (req, res) => {\n  req.item.process();\n  res.send('Processed');\n});",
+  "diagnosis": "Middleware loads the profile item and attaches it to the request object without verifying ownership. The subsequent route handler assumes the user is authorized to process it.",
+  "exploit_request": "POST /profile/22/process HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "router.param('id', async (req, res, next, id) => {\n  const item = await Profile.findById(id);\n  if (!item || item.ownerId !== req.user.id) return res.status(403).send('Forbidden');\n  req.item = item;\n  next();\n});\nrouter.post('/profile/:id/process', (req, res) => {\n  req.item.process();\n  res.send('Processed');\n});"
+}

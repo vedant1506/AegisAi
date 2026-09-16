@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package dashboard\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/models\"\n)\n\ntype WidgetRepository struct {\n\tDB *gorm.DB\n}\n\nfunc (r *WidgetRepository) GetWidgetConfig(ctx context.Context, widgetID string) (*models.DashboardWidget, error) {\n\tvar widget models.DashboardWidget\n\n\t// BOLA: Queries widget display configuration by widgetID without checking workspace ownership.\n\tif err := r.DB.WithContext(ctx).First(&widget, \"widget_id = ?\", widgetID).Error; err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn &widget, nil\n}\n",
+  "diagnosis": "The GetWidgetConfig method loads dashboard widget settings using only the widget_id without scoping to the caller's workspace. While widget configurations only contain cosmetic layout positions and chart colors, an attacker can inspect dashboard layouts belonging to other workspaces.",
+  "exploit_request": "GET /dashboard/widgets/wdg_112 HTTP/1.1\nHost: analytics.appview.io\nAuthorization: Bearer workspace_token_22\nAccept: application/json",
+  "corrected_code": "package dashboard\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/auth\"\n\t\"myapp/models\"\n)\n\ntype WidgetRepository struct {\n\tDB *gorm.DB\n}\n\nfunc (r *WidgetRepository) GetWidgetConfig(ctx context.Context, widgetID string) (*models.DashboardWidget, error) {\n\tvar widget models.DashboardWidget\n\tworkspaceID := auth.GetWorkspaceID(ctx)\n\n\tif err := r.DB.WithContext(ctx).\n\t\tWhere(\"widget_id = ? AND workspace_id = ?\", widgetID, workspaceID).\n\t\tFirst(&widget).Error; err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn &widget, nil\n}\n",
+  "severity": "LOW",
+  "confidence": 0.79
+}

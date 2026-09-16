@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ProductCertificatesController < ApplicationController\n  def download\n    # Fetches product by ID without checking if the compliance certificate is published or draft\n    @product = Product.find(params[:product_id])\n    redirect_to rails_blob_url(@product.compliance_certificate)\n  end\nend",
+  "diagnosis": "The download action redirects to the product compliance_certificate blob without verifying if the product is in published status or belongs to the vendor's catalog. Third-party vendors can inspect unreleased safety certifications and regulatory test results of competitor products before public product launches.",
+  "exploit_request": "GET /api/catalog/products/prd_8812/certificate HTTP/1.1\nHost: marketplace.supplier-network.com\nAuthorization: Bearer vendor_token_40\nAccept: */*",
+  "corrected_code": "class ProductCertificatesController < ApplicationController\n  def download\n    @product = Product.find(params[:product_id])\n    unless @product.published? || (current_vendor && current_vendor.id == @product.vendor_id)\n      return render_unauthorized\n    end\n\n    redirect_to rails_blob_url(@product.compliance_certificate)\n  end\nend",
+  "severity": "LOW",
+  "confidence": 0.79
+}

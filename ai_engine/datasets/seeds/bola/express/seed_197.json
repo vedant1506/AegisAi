@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const resolveOrgContext = (req, res, next) => {\n  req.locals = { orgId: req.headers['x-organization-id'] };\n  next();\n};\n\napp.get('/api/analytics/monthly', verifyToken, resolveOrgContext, async (req, res) => {\n  const stats = await db('revenue_analytics').where({ organization_id: req.locals.orgId }).select('*');\n  res.json(stats);\n});",
+  "diagnosis": "The middleware blindly extracts x-organization-id from HTTP request headers into req.locals.orgId without verifying whether the authenticated user (req.user) is a member of that organization. An attacker can set arbitrary organization IDs to view revenue analytics of other companies.",
+  "exploit_request": "GET /api/analytics/monthly HTTP/1.1\nHost: app.metrics.io\nAuthorization: Bearer <valid_jwt>\nx-organization-id: org_competitor_corp_5910",
+  "corrected_code": "const resolveOrgContext = async (req, res, next) => {\n  const orgId = req.headers['x-organization-id'];\n  const membership = await db('organization_members').where({ organization_id: orgId, user_id: req.user.id }).first();\n  if (!membership) return res.status(403).json({ error: 'You are not a member of this organization' });\n  req.locals = { orgId };\n  next();\n};\n\napp.get('/api/analytics/monthly', verifyToken, resolveOrgContext, async (req, res) => {\n  const stats = await db('revenue_analytics').where({ organization_id: req.locals.orgId }).select('*');\n  res.json(stats);\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.94
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.post('/api/chat/group/join', async (req, res) => {\n  const { groupId } = req.body;\n  const groupRepo = dataSource.getRepository(GroupChat);\n  const group = await groupRepo.findOne({ where: { id: groupId } });\n  group.members.push(req.user.id);\n  await groupRepo.save(group);\n  res.send('Joined');\n});",
+  "diagnosis": "Endpoint allows a user to join a group chat by supplying a groupId. It uses TypeORM to fetch the group and append the user to the members array. It fails to check if the group is private or requires an invite/admin approval.",
+  "exploit_request": "POST /api/chat/group/join HTTP/1.1\nHost: api.example.com\nContent-Type: application/json\nAuthorization: Bearer <attacker_token>\n\n{\"groupId\": \"secret-admin-group-123\"}",
+  "corrected_code": "app.post('/api/chat/group/join', async (req, res) => {\n  const { groupId } = req.body;\n  const groupRepo = dataSource.getRepository(GroupChat);\n  const group = await groupRepo.findOne({ where: { id: groupId } });\n  if (group.isPrivate && !group.invitedUsers.includes(req.user.id)) {\n    return res.status(403).send('Not invited');\n  }\n  group.members.push(req.user.id);\n  await groupRepo.save(group);\n  res.send('Joined');\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.85
+}

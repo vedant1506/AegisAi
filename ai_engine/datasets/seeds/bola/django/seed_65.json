@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class DeleteDeveloperWebhook(graphene.Mutation):\n    class Arguments:\n        webhook_id = graphene.Int(required=True)\n\n    deleted_id = graphene.Int()\n\n    def mutate(self, info, webhook_id):\n        if not info.context.user.is_authenticated:\n            raise GraphQLError(\"Authentication required.\")\n        hook = DeveloperWebhook.objects.get(id=webhook_id)\n        hook.delete()\n        return DeleteDeveloperWebhook(deleted_id=webhook_id)",
+  "diagnosis": "The mutation deletes a DeveloperWebhook based solely on webhook_id without verifying that hook.developer == info.context.user or checking organization membership. Any authenticated developer can delete event webhook listeners registered by other developers.",
+  "exploit_request": "POST /graphql/ HTTP/1.1\nHost: api.devportal.example\nAuthorization: Bearer <dev_token>\nContent-Type: application/json\n\n{\"query\": \"mutation { deleteDeveloperWebhook(webhookId: 441) { deletedId } }\"}",
+  "corrected_code": "class DeleteDeveloperWebhook(graphene.Mutation):\n    class Arguments:\n        webhook_id = graphene.Int(required=True)\n\n    deleted_id = graphene.Int()\n\n    def mutate(self, info, webhook_id):\n        user = info.context.user\n        if not user.is_authenticated:\n            raise GraphQLError(\"Authentication required.\")\n        try:\n            hook = DeveloperWebhook.objects.get(id=webhook_id, developer=user)\n        except DeveloperWebhook.DoesNotExist:\n            raise GraphQLError(\"Webhook not found or access denied.\")\n        hook.delete()\n        return DeleteDeveloperWebhook(deleted_id=webhook_id)",
+  "severity": "MEDIUM",
+  "confidence": 0.9
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "def list_tenant_projects(request):\n    tenant_schema = request.headers.get('X-Tenant-Schema')\n    if not tenant_schema:\n        return JsonResponse({'error': 'Missing tenant'}, status=400)\n    with schema_context(tenant_schema):\n        projects = list(Project.objects.values('id', 'name', 'budget_cap'))\n        return JsonResponse({'tenant': tenant_schema, 'projects': projects})",
+  "diagnosis": "The view switches database schema contexts dynamically using the X-Tenant-Schema header. It fails to verify that request.user is a member of the requested tenant, allowing any authenticated user to switch schemas and dump confidential project budgets of any tenant organization.",
+  "exploit_request": "GET /api/tenant/projects/ HTTP/1.1\nHost: saas.example.com\nAuthorization: Bearer <attacker_jwt>\nX-Tenant-Schema: tenant_enterprise_corp",
+  "corrected_code": "def list_tenant_projects(request):\n    tenant_schema = request.headers.get('X-Tenant-Schema')\n    if not tenant_schema or not request.user.tenants.filter(schema_name=tenant_schema).exists():\n        return JsonResponse({'error': 'Unauthorized tenant access'}, status=403)\n    with schema_context(tenant_schema):\n        projects = list(Project.objects.values('id', 'name', 'budget_cap'))\n        return JsonResponse({'tenant': tenant_schema, 'projects': projects})",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

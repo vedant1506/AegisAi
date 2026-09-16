@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ExpenseClaimsController < ApplicationController\n  before_action :require_employee_login\n\n  def update\n    @claim = ExpenseClaim.find_by!(id: params[:id])\n    if @claim.update(claim_params)\n      render json: @claim\n    else\n      render json: { errors: @claim.errors.full_messages }, status: :unprocessable_entity\n    end\n  end\n\n  private\n\n  def claim_params\n    params.require(:expense_claim).permit(:amount, :category, :merchant, :notes, :direct_deposit_account)\n  end\nend",
+  "diagnosis": "The update action uses ExpenseClaim.find_by! directly on params[:id] without scoping to current_user or verifying draft status. Any employee can modify colleagues' pending reimbursement claims, altering amounts, merchant receipts, and direct-deposit routing information.",
+  "exploit_request": "PATCH /api/expenses/claims/512 HTTP/1.1\nHost: hr.workplace-portal.net\nAuthorization: Bearer emp_token_582\nContent-Type: application/json\n\n{\"expense_claim\": {\"amount\": 4850.00, \"direct_deposit_account\": \"US8937040044053201\"}}",
+  "corrected_code": "class ExpenseClaimsController < ApplicationController\n  before_action :require_employee_login\n\n  def update\n    @claim = current_user.expense_claims.where(status: :draft).find(params[:id])\n    if @claim.update(claim_params)\n      render json: @claim\n    else\n      render json: { errors: @claim.errors.full_messages }, status: :unprocessable_entity\n    end\n  end\n\n  private\n\n  def claim_params\n    params.require(:expense_claim).permit(:amount, :category, :merchant, :notes, :direct_deposit_account)\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.91
+}

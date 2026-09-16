@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\n\n// routes/channels.php\nBroadcast::channel('chat.conversation.{conversationId}', function (User $user, int $conversationId) {\n    // Insecure authorization callback: returns true for any authenticated user\n    return true;\n});",
+  "diagnosis": "The private chat conversation broadcasting channel callback returns true unconditionally for any authenticated user, bypassing conversation participant checks. Any authenticated user can subscribe to private WebSocket channels belonging to other parties and intercept sensitive direct messages in real time.",
+  "exploit_request": "POST /broadcasting/auth HTTP/1.1\nHost: chat.enterprise-suite.com\nAuthorization: Bearer 99|chattok556677\nContent-Type: application/json\n\n{\"socket_id\": \"148201.99302\", \"channel_name\": \"private-chat.conversation.4819\"}",
+  "corrected_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\n\n// routes/channels.php\nBroadcast::channel('chat.conversation.{conversationId}', function (User $user, int $conversationId) {\n    return $user->conversations()\n        ->where('conversations.id', $conversationId)\n        ->exists();\n});",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

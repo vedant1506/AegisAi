@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Recruiting::ResumesController < ApplicationController\n  before_action :authenticate_recruiter!\n\n  def show\n    # Looks up ActiveStorage::Attachment directly by ID across all candidate profiles\n    @attachment = ActiveStorage::Attachment.find_by!(id: params[:id], record_type: 'CandidateProfile')\n    send_data @attachment.download, filename: @attachment.filename.to_s\n  end\nend",
+  "diagnosis": "The show action queries ActiveStorage::Attachment by primary key id filtered only by record_type without verifying that the candidate applied to jobs owned by the recruiter's agency. Recruiters can harvest resumes containing candidate phone numbers, home addresses, and compensation histories from competing hiring pipelines.",
+  "exploit_request": "GET /api/recruiting/resumes/att_7731 HTTP/1.1\nHost: ats.talentforce.net\nAuthorization: Bearer recruiter_jwt_51\nAccept: application/pdf",
+  "corrected_code": "class Recruiting::ResumesController < ApplicationController\n  before_action :authenticate_recruiter!\n\n  def show\n    profile = current_recruiter.agency.candidate_profiles.find(params[:candidate_profile_id])\n    @attachment = profile.resume_attachment\n    send_data @attachment.download, filename: @attachment.filename.to_s\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.9
+}

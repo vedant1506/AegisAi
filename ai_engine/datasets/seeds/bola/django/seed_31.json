@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@staff_member_required\ndef inspect_kyc_dossier(request, dossier_id):\n    dossier = KycDossier.objects.get(id=dossier_id)\n    return render(request, 'admin/kyc_detail.html', {'dossier': dossier})",
+  "diagnosis": "The view uses @staff_member_required which grants access to any employee with is_staff=True. It fetches KycDossier by id without verifying department authorization or assigning queue restrictions, allowing internal staff to view sensitive identity documents outside their authorized review tier.",
+  "exploit_request": "GET /admin/compliance/kyc/7741/inspect/ HTTP/1.1\nHost: admin.example.com\nCookie: sessionid=low_priv_staff_session",
+  "corrected_code": "@staff_member_required\ndef inspect_kyc_dossier(request, dossier_id):\n    if not request.user.has_perm('compliance.can_inspect_kyc'):\n        raise PermissionDenied(\"Insufficient compliance clearances.\")\n    dossier = get_object_or_404(KycDossier, id=dossier_id, assigned_auditor=request.user)\n    return render(request, 'admin/kyc_detail.html', {'dossier': dossier})",
+  "severity": "HIGH",
+  "confidence": 0.91
+}

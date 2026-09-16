@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "router.post('/orders/duplicate', async (req, res) => {\n  const sourceOrder = await Order.findById(req.body.sourceId);\n  const newOrder = await Order.create({ ...sourceOrder.toObject(), _id: undefined, userId: req.user.id });\n  res.json(newOrder);\n});",
+  "diagnosis": "Duplicates an existing order based on ID provided in the body. It correctly assigns the new order to the current user, but fails to check if the sourceOrder belongs to the user, allowing attackers to leak order details of others by duplicating them.",
+  "exploit_request": "POST /orders/duplicate HTTP/1.1\nContent-Type: application/json\n\n{\"sourceId\": \"victim_order_id\"}",
+  "corrected_code": "router.post('/orders/duplicate', async (req, res) => {\n  const sourceOrder = await Order.findOne({ _id: req.body.sourceId, userId: req.user.id });\n  if (!sourceOrder) return res.status(404).send();\n  const newOrder = await Order.create({ ...sourceOrder.toObject(), _id: undefined });\n  res.json(newOrder);\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.92
+}

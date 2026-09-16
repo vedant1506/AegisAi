@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "def export_device_telemetry(request, device_id):\n    device = Device.objects.get(id=device_id)\n    data = list(device.telemetry_readings.order_by('-timestamp').values_list(\n        'timestamp', 'latitude', 'longitude', 'speed', named=True\n    )[:500])\n    return JsonResponse({'device_id': device.id, 'breadcrumbs': [d._asdict() for d in data]})",
+  "diagnosis": "The endpoint queries Device.objects.get(id=device_id) and retrieves historical GPS coordinates without checking whether the requesting user owns the device or belongs to the authorized fleet manager group.",
+  "exploit_request": "GET /api/fleet/devices/1209/telemetry/ HTTP/1.1\nHost: tracker.example.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "def export_device_telemetry(request, device_id):\n    device = get_object_or_404(Device, id=device_id, fleet__organization=request.user.organization)\n    data = list(device.telemetry_readings.order_by('-timestamp').values_list(\n        'timestamp', 'latitude', 'longitude', 'speed', named=True\n    )[:500])\n    return JsonResponse({'device_id': device.id, 'breadcrumbs': [d._asdict() for d in data]})",
+  "severity": "MEDIUM",
+  "confidence": 0.94
+}

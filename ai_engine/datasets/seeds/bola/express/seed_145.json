@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const resolvers = {\n  Query: {\n    paymentMethod: async (_, args, context) => {\n      return await PaymentMethod.findByPk(args.id);\n    }\n  }\n};",
+  "diagnosis": "A GraphQL resolver for 'paymentMethod' fetches the requested payment method by its 'id' argument via Sequelize. It neglects to use 'context.user.id' to verify ownership of the payment method.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: api.example.com\nContent-Type: application/json\nAuthorization: Bearer <attacker_token>\n\n{\"query\": \"query { paymentMethod(id: 42) { cardNumber expiration } }\"}",
+  "corrected_code": "const resolvers = {\n  Query: {\n    paymentMethod: async (_, args, context) => {\n      const pm = await PaymentMethod.findByPk(args.id);\n      if (pm && pm.userId !== context.user.id) throw new Error('Unauthorized');\n      return pm;\n    }\n  }\n};",
+  "severity": "HIGH",
+  "confidence": 0.9
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@app.post(\"/integrations/sync\")\ndef sync_external_integration(\n    integration_id: str = Body(..., embed=True),\n    user: User = Depends(get_current_user)\n):\n    sync_external_crm.delay(integration_id)\n    return {\"status\": \"sync_dispatched\", \"integration_id\": integration_id}",
+  "diagnosis": "The endpoint takes an integration_id from the request body and forwards it directly to a Celery asynchronous task worker. It fails to verify that the specified CRM integration belongs to the authenticated user's organization, allowing attackers to initiate unauthorized syncs, pollute CRM data, or trigger rate-limit lockout on target accounts.",
+  "exploit_request": "POST /integrations/sync HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"integration_id\": \"intg_salesforce_9921\"}",
+  "corrected_code": "@app.post(\"/integrations/sync\")\ndef sync_external_integration(\n    integration_id: str = Body(..., embed=True),\n    user: User = Depends(get_current_user),\n    db: Session = Depends(get_db)\n):\n    integration = db.query(Integration).filter(\n        Integration.id == integration_id,\n        Integration.organization_id == user.organization_id\n    ).first()\n    if not integration:\n        raise HTTPException(status_code=404, detail=\"Integration not found\")\n\n    sync_external_crm.delay(integration_id)\n    return {\"status\": \"sync_dispatched\", \"integration_id\": integration_id}",
+  "severity": "MEDIUM",
+  "confidence": 0.88
+}

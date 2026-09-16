@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const LaunchDarkly = require('launchdarkly-node-server-sdk');\nconst ldClient = LaunchDarkly.init(process.env.LAUNCHDARKLY_SDK_KEY);\n\nrouter.get('/api/flags/evaluate', verifyAuth, async (req, res) => {\n  const userKey = req.query.userKey || req.user.id;\n  const flagKey = req.query.flagKey;\n\n  const ldUser = { key: userKey };\n  const flagValue = await ldClient.variation(flagKey, ldUser, false);\n\n  res.json({ flagKey, userKey, value: flagValue });\n});",
+  "diagnosis": "The endpoint proxies LaunchDarkly feature flag evaluations for mobile clients. It accepts userKey from query parameters and prioritizes it over req.user.id. Any user can evaluate beta flags, internal administrative toggles, and feature entitlements for target users or executives.",
+  "exploit_request": "GET /api/flags/evaluate?flagKey=enable-enterprise-wire-transfers&userKey=usr_executive_vip_001 HTTP/1.1\nHost: api.mobilefintech.com\nAuthorization: Bearer <regular_user_jwt>",
+  "corrected_code": "const LaunchDarkly = require('launchdarkly-node-server-sdk');\nconst ldClient = LaunchDarkly.init(process.env.LAUNCHDARKLY_SDK_KEY);\n\nrouter.get('/api/flags/evaluate', verifyAuth, async (req, res) => {\n  const flagKey = req.query.flagKey;\n  const userKey = req.user.id;\n\n  const ldUser = {\n    key: userKey,\n    custom: {\n      role: req.user.role,\n      tier: req.user.tier\n    }\n  };\n  const flagValue = await ldClient.variation(flagKey, ldUser, false);\n\n  res.json({ flagKey, userKey, value: flagValue });\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.93
+}

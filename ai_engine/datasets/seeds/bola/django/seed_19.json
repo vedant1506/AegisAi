@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ApiTokenRevokeView(LoginRequiredMixin, DeleteView):\n    model = ApiToken\n    success_url = reverse_lazy('tokens:manage')\n    pk_url_kwarg = 'token_id'",
+  "diagnosis": "The DeleteView deletes an ApiToken by token_id extracted from the URL. Without restricting get_queryset() to user=self.request.user, any user can revoke third-party API credentials belonging to other developers or automated services.",
+  "exploit_request": "POST /api-tokens/5042/revoke/ HTTP/1.1\nHost: developer.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "class ApiTokenRevokeView(LoginRequiredMixin, DeleteView):\n    model = ApiToken\n    success_url = reverse_lazy('tokens:manage')\n    pk_url_kwarg = 'token_id'\n\n    def get_queryset(self):\n        return ApiToken.objects.filter(user=self.request.user)",
+  "severity": "MEDIUM",
+  "confidence": 0.94
+}

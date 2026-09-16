@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class DepartmentWikiAPIViewSet(PagesAPIViewSet):\n    def get_queryset(self):\n        dept_id = self.request.query_params.get('department_id')\n        if dept_id:\n            return DepartmentWikiPage.objects.filter(department_id=dept_id).live().public()\n        return DepartmentWikiPage.objects.none()",
+  "diagnosis": "The custom Wagtail PagesAPIViewSet filters DepartmentWikiPage by department_id from query parameters. It does not verify that request.user belongs to that department or check Wagtail view restrictions, allowing any user to read departmental intranet pages.",
+  "exploit_request": "GET /api/v2/pages/wiki/?department_id=4 HTTP/1.1\nHost: intranet.company.com\nCookie: sessionid=contractor_session",
+  "corrected_code": "class DepartmentWikiAPIViewSet(PagesAPIViewSet):\n    def get_queryset(self):\n        dept_id = self.request.query_params.get('department_id')\n        if not self.request.user.is_authenticated:\n            return DepartmentWikiPage.objects.none()\n        if dept_id:\n            if str(self.request.user.department_id) != str(dept_id):\n                raise PermissionDenied(\"You do not belong to this department.\")\n            return DepartmentWikiPage.objects.filter(department_id=dept_id).live().public()\n        return DepartmentWikiPage.objects.none()",
+  "severity": "MEDIUM",
+  "confidence": 0.91
+}

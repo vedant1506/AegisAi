@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get(\"/api/v1/tags/{tag_id}/documents\", response_model=List[DocumentRead])\ndef get_documents_by_tag(\n    tag_id: uuid.UUID,\n    session: Session = Depends(get_session),\n    current_user: User = Depends(get_current_user)\n):\n    tag = session.get(Tag, tag_id)\n    if not tag:\n        raise HTTPException(status_code=404, detail=\"Tag not found\")\n    return tag.documents",
+  "diagnosis": "Traversing the SQLModel tag.documents relationship directly returns all documents associated with the tag across all workspaces. Since tags can be shared or globally visible, navigating the relationship without filtering documents by Document.tenant_id == current_user.tenant_id exposes documents belonging to other tenants.",
+  "exploit_request": "GET /api/v1/tags/7c9e6679-7425-40de-944b-e07fc1f90ae7/documents HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "@router.get(\"/api/v1/tags/{tag_id}/documents\", response_model=List[DocumentRead])\ndef get_documents_by_tag(\n    tag_id: uuid.UUID,\n    session: Session = Depends(get_session),\n    current_user: User = Depends(get_current_user)\n):\n    tag = session.get(Tag, tag_id)\n    if not tag:\n        raise HTTPException(status_code=404, detail=\"Tag not found\")\n    stmt = (\n        select(Document)\n        .join(DocumentTagLink)\n        .where(DocumentTagLink.tag_id == tag_id, Document.tenant_id == current_user.tenant_id)\n    )\n    return session.exec(stmt).all()",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

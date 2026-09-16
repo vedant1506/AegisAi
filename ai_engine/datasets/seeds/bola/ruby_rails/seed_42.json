@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ReviewsController < ApplicationController\n  def create\n    # Permits author_id in strong parameters, enabling identity spoofing in product reviews\n    @review = Review.new(review_params)\n    @review.save!\n    render json: @review, status: :created\n  end\n\n  private\n\n  def review_params\n    params.require(:review).permit(:product_id, :rating, :comment_text, :author_id)\n  end\nend",
+  "diagnosis": "The review_params method permits author_id from client requests. Attackers can forge product reviews and negative testimonials under the identity of other registered buyers.",
+  "exploit_request": "POST /api/reviews HTTP/1.1\nHost: shop.storefront.io\nAuthorization: Bearer attacker_session_11\nContent-Type: application/json\n\n{\"review\": {\"product_id\": 450, \"rating\": 1, \"comment_text\": \"Terrible fraud product\", \"author_id\": 19}}",
+  "corrected_code": "class ReviewsController < ApplicationController\n  def create\n    @review = current_user.reviews.build(review_params)\n    @review.save!\n    render json: @review, status: :created\n  end\n\n  private\n\n  def review_params\n    params.require(:review).permit(:product_id, :rating, :comment_text)\n  end\nend",
+  "severity": "LOW",
+  "confidence": 0.8
+}

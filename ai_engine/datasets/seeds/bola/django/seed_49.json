@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class SmartApplianceConsumer(AsyncWebsocketConsumer):\n    async def receive(self, text_data):\n        data = json.loads(text_data)\n        device_eui = data.get('device_eui')\n        new_state = data.get('power_state')\n        await mqtt_client.publish(f\"devices/{device_eui}/set_power\", json.dumps({'state': new_state}))\n        await self.send(text_data=json.dumps({'acknowledged': True, 'device': device_eui}))",
+  "diagnosis": "The WebSocket consumer forwards actuation commands to an MQTT broker using device_eui from client input without verifying that self.scope['user'] is registered as the owner of the IoT appliance, permitting unauthorized hardware manipulation.",
+  "exploit_request": "GET /ws/appliances/control/ HTTP/1.1\nHost: iot.example.com\nUpgrade: websocket\nConnection: Upgrade\nCookie: sessionid=attacker_session\n\n{\"device_eui\": \"AC:DE:48:00:11:22\", \"power_state\": \"OFF\"}",
+  "corrected_code": "class SmartApplianceConsumer(AsyncWebsocketConsumer):\n    async def receive(self, text_data):\n        data = json.loads(text_data)\n        device_eui = data.get('device_eui')\n        is_owner = await database_sync_to_async(\n            SmartAppliance.objects.filter(device_eui=device_eui, owner=self.scope['user']).exists\n        )()\n        if not is_owner:\n            await self.send(text_data=json.dumps({'error': 'Unauthorized device control'}))\n            return\n        new_state = data.get('power_state')\n        await mqtt_client.publish(f\"devices/{device_eui}/set_power\", json.dumps({'state': new_state}))\n        await self.send(text_data=json.dumps({'acknowledged': True, 'device': device_eui}))",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

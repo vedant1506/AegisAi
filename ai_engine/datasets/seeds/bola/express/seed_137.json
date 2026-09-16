@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.get('/api/orders/search', async (req, res) => {\n  const orders = await Order.findAll();\n  const match = orders.find(o => o.id == req.query.id);\n  res.json(match);\n});",
+  "diagnosis": "The endpoint fetches all orders globally and filters them in memory for the requested ID. It fails to restrict the filter to only orders owned by the user.",
+  "exploit_request": "GET /api/orders/search?id=102 HTTP/1.1\nHost: api.example.com",
+  "corrected_code": "app.get('/api/orders/search', async (req, res) => {\n  const orders = await Order.findAll({ where: { userId: req.user.id } });\n  const match = orders.find(o => o.id == req.query.id);\n  res.json(match);\n});",
+  "severity": "LOW",
+  "confidence": 0.88
+}

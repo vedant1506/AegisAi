@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const orderSubscriptionResolvers = {\n  Subscription: {\n    orderStatusUpdated: {\n      subscribe: withFilter(\n        () => pubsub.asyncIterator(['ORDER_STATUS_CHANGED']),\n        (payload, variables) => {\n          return payload.orderId === variables.orderId;\n        }\n      ),\n      resolve: (payload) => payload.statusUpdate\n    }\n  }\n};",
+  "diagnosis": "The GraphQL subscription filter only checks that payload.orderId matches variables.orderId. It fails to consult context.user to verify whether the client is the owner or customer of the order, allowing any authenticated user to receive real-time shipping milestones and fulfillment details of other users' orders.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: api.retailer.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Protocol: graphql-transport-ws\n\n{\"type\": \"subscribe\", \"id\": \"sub_1\", \"payload\": {\"query\": \"subscription { orderStatusUpdated(orderId: \\\"ord_99014\\\") { trackingCode carrier status } }\"}}",
+  "corrected_code": "const orderSubscriptionResolvers = {\n  Subscription: {\n    orderStatusUpdated: {\n      subscribe: withFilter(\n        () => pubsub.asyncIterator(['ORDER_STATUS_CHANGED']),\n        async (payload, variables, context) => {\n          if (!context.user) return false;\n          const order = await Order.findByPk(variables.orderId);\n          return order && order.userId === context.user.id && payload.orderId === variables.orderId;\n        }\n      ),\n      resolve: (payload) => payload.statusUpdate\n    }\n  }\n};",
+  "severity": "MEDIUM",
+  "confidence": 0.96
+}

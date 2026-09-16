@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "router.get('/notifications/channels/:channelId/rules', koaJwt({ secret: process.env.JWT_SECRET }), async (ctx) => {\n  const { channelId } = ctx.params;\n\n  const channel = await NotificationChannel.findById(channelId);\n  if (!channel) {\n    ctx.status = 404;\n    ctx.body = { message: 'Channel not found' };\n    return;\n  }\n\n  ctx.body = {\n    channelId: channel._id,\n    deliveryType: channel.deliveryType,\n    destinationWebhook: channel.webhookUrl,\n    filterTags: channel.subscribedTags\n  };\n});",
+  "diagnosis": "The Koa route returns notification destination URLs and routing filters for channelId. koaJwt authenticates the user, but the handler looks up NotificationChannel by ID without checking channel.userId === ctx.state.user.id. Any user can enumerate channel IDs and discover webhook endpoints and secret URL tokens of other users.",
+  "exploit_request": "GET /notifications/channels/66a0d249f3102c0018ab3e91/rules HTTP/1.1\nHost: alerts.cloudnotifier.io\nAuthorization: Bearer <authenticated_user_jwt>",
+  "corrected_code": "router.get('/notifications/channels/:channelId/rules', koaJwt({ secret: process.env.JWT_SECRET }), async (ctx) => {\n  const { channelId } = ctx.params;\n\n  const channel = await NotificationChannel.findOne({\n    _id: channelId,\n    userId: ctx.state.user.id\n  });\n  if (!channel) {\n    ctx.status = 403;\n    ctx.body = { message: 'Access denied to notification channel' };\n    return;\n  }\n\n  ctx.body = {\n    channelId: channel._id,\n    deliveryType: channel.deliveryType,\n    destinationWebhook: channel.webhookUrl,\n    filterTags: channel.subscribedTags\n  };\n});",
+  "severity": "LOW",
+  "confidence": 0.86
+}

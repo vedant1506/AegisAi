@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "def update_settings(request, user_id):\n    settings = UserSettings.objects.get(user_id=user_id)\n    data = json.loads(request.body)\n    settings.email_notifications = data.get('email_notifications')\n    settings.save()\n    return JsonResponse({'status': 'updated'})",
+  "diagnosis": "The settings update route expects a user_id in the URL and modifies that user's settings. It fails to ensure the user_id matches the request.user.",
+  "exploit_request": "POST /api/settings/1/update HTTP/1.1\nHost: api.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/json\n\n{\"email_notifications\": false}",
+  "corrected_code": "def update_settings(request, user_id):\n    if int(user_id) != request.user.id:\n        return HttpResponseForbidden()\n    settings = get_object_or_404(UserSettings, user_id=user_id)\n    data = json.loads(request.body)\n    settings.email_notifications = data.get('email_notifications')\n    settings.save()\n    return JsonResponse({'status': 'updated'})"
+}

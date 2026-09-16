@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.post('/api/profile/sync', (req, res) => {\n  const targetId = req.body.targetUser || req.user.id;\n  Profile.syncData(targetId);\n  res.send('Synced');\n});",
+  "diagnosis": "The profile sync logic allows an attacker to override the authenticated user's ID by supplying 'targetUser' in the request body.",
+  "exploit_request": "POST /api/profile/sync HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"targetUser\": 1}",
+  "corrected_code": "app.post('/api/profile/sync', (req, res) => {\n  const targetId = req.user.id;\n  Profile.syncData(targetId);\n  res.send('Synced');\n});"
+}

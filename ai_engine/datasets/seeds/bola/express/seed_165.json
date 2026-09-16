@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@Controller('hr/payroll')\n@UseGuards(JwtAuthGuard)\nexport class PayrollDocumentController {\n  @Get(':documentId/pdf')\n  async downloadTaxForm(@Param('documentId') documentId: string, @Res() res: Response) {\n    const doc = await PayrollDocumentModel.findById(documentId);\n    if (!doc) return res.status(404).send('Document not found');\n    res.setHeader('Content-Type', 'application/pdf');\n    res.setHeader('Content-Disposition', `attachment; filename=\"${doc.filename}\"`);\n    fs.createReadStream(doc.storagePath).pipe(res);\n  }\n}",
+  "diagnosis": "The endpoint downloads payroll and tax forms directly by document ID using Mongoose findById without checking if the document's employeeId matches req.user.employeeId. Any authenticated employee can enumerate document IDs to download W-2 and pay stub PDFs of other employees.",
+  "exploit_request": "GET /hr/payroll/65a3f18e90c8a12001e9d102/pdf HTTP/1.1\nHost: hr.enterprise.internal\nAuthorization: Bearer <employee_jwt>",
+  "corrected_code": "@Controller('hr/payroll')\n@UseGuards(JwtAuthGuard)\nexport class PayrollDocumentController {\n  @Get(':documentId/pdf')\n  async downloadTaxForm(@Param('documentId') documentId: string, @Req() req: Request, @Res() res: Response) {\n    const doc = await PayrollDocumentModel.findOne({ _id: documentId, employeeId: req.user.employeeId });\n    if (!doc) return res.status(403).send('Forbidden: unauthorized access to tax document');\n    res.setHeader('Content-Type', 'application/pdf');\n    res.setHeader('Content-Disposition', `attachment; filename=\"${doc.filename}\"`);\n    fs.createReadStream(doc.storagePath).pipe(res);\n  }\n}",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

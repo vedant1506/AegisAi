@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "router.post('/auth/refresh-reuse-alert', async (req, res) => {\n  const { userRef, compromisedTokenFamily } = req.body;\n\n  await MongooseRefreshToken.updateMany(\n    { user: userRef },\n    { $set: { isRevoked: true, revokeReason: 'TOKEN_REUSE_DETECTED' } }\n  );\n\n  res.json({ status: 'All user sessions terminated', userRef });\n});",
+  "diagnosis": "The security endpoint revokes all refresh tokens in MongoDB matching userRef without authenticating the caller or checking whether the presenter owns the userRef. Any unauthenticated caller can trigger global logout and denial of service across all active devices for any target user by submitting their userRef.",
+  "exploit_request": "POST /auth/refresh-reuse-alert HTTP/1.1\nHost: api.corporate-id.com\nContent-Type: application/json\n\n{\"userRef\": \"usr_ceo_001\", \"compromisedTokenFamily\": \"fam_99\"}",
+  "corrected_code": "router.post('/auth/refresh-reuse-alert', requireServiceAuth, async (req, res) => {\n  const { compromisedTokenFamily } = req.body;\n\n  const tokenRecord = await MongooseRefreshToken.findOne({ tokenFamily: compromisedTokenFamily });\n  if (!tokenRecord) {\n    return res.status(404).json({ error: 'Token family not found' });\n  }\n\n  await MongooseRefreshToken.updateMany(\n    { user: tokenRecord.user },\n    { $set: { isRevoked: true, revokeReason: 'TOKEN_REUSE_DETECTED' } }\n  );\n\n  res.json({ status: 'All user sessions terminated', userId: tokenRecord.user });\n});",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

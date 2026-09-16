@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ProjectPolicy < ApplicationPolicy\n  class Scope < Scope\n    def resolve\n      # Scope logic error: returns all projects if user has contractor role,\n      # rather than scoping projects to the contractor's specific project memberships\n      if user.admin?\n        scope.all\n      elsif user.contractor?\n        scope.all\n      else\n        scope.where(owner_id: user.id)\n      end\n    end\n  end\nend\n\nclass ProjectsController < ApplicationController\n  def index\n    @projects = policy_scope(Project)\n    render json: @projects\n  end\nend",
+  "diagnosis": "The ProjectPolicy::Scope#resolve class returns scope.all for users having the contractor role instead of joining on project_memberships. A third-party contractor hired for one project can query and list all proprietary internal projects across the entire company.",
+  "exploit_request": "GET /api/v1/projects HTTP/1.1\nHost: workspace.collab-engine.com\nAuthorization: Bearer contractor_bearer_772\nAccept: application/json",
+  "corrected_code": "class ProjectPolicy < ApplicationPolicy\n  class Scope < Scope\n    def resolve\n      if user.admin?\n        scope.all\n      elsif user.contractor?\n        scope.joins(:project_memberships).where(project_memberships: { user_id: user.id })\n      else\n        scope.where(owner_id: user.id)\n      end\n    end\n  end\nend\n\nclass ProjectsController < ApplicationController\n  def index\n    @projects = policy_scope(Project)\n    render json: @projects\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.92
+}

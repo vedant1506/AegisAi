@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "export const notificationRouter = router({\n  markAsRead: protectedProcedure\n    .input(z.object({ notificationId: z.string().cuid() }))\n    .mutation(async ({ input, ctx }) => {\n      const updated = await ctx.prisma.inAppNotification.update({\n        where: { id: input.notificationId },\n        data: { isRead: true },\n      });\n      return { success: true, id: updated.id };\n    }),\n});",
+  "diagnosis": "The mutation updates isRead: true based on input.notificationId without verifying that the notification belongs to recipientId: ctx.user.id. Any authenticated user can dismiss or mark as read notifications intended for other users.",
+  "exploit_request": "POST /trpc/notification.markAsRead HTTP/1.1\nHost: portal.app.com\nContent-Type: application/json\nAuthorization: Bearer <user_token>\n\n{\"notificationId\": \"clj901azb0001mp08yq4m892z\"}",
+  "corrected_code": "export const notificationRouter = router({\n  markAsRead: protectedProcedure\n    .input(z.object({ notificationId: z.string().cuid() }))\n    .mutation(async ({ input, ctx }) => {\n      const notification = await ctx.prisma.inAppNotification.findFirst({\n        where: { id: input.notificationId, recipientId: ctx.user.id },\n      });\n      if (!notification) throw new TRPCError({ code: 'NOT_FOUND', message: 'Notification not found' });\n      const updated = await ctx.prisma.inAppNotification.update({\n        where: { id: input.notificationId },\n        data: { isRead: true },\n      });\n      return { success: true, id: updated.id };\n    }),\n});",
+  "severity": "LOW",
+  "confidence": 0.87
+}

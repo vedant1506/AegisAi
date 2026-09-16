@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class RedactDocumentWorker\n  include Sidekiq::Worker\n\n  def perform(document_id, requester_id)\n    document = Document.find(document_id)\n    # Alters document without verifying requester edit authority\n    document.apply_redactions!\n  end\nend\n\nclass DocumentsController < ApplicationController\n  def redact\n    RedactDocumentWorker.perform_async(params[:id], current_user.id)\n    render json: { status: 'Redaction started' }\n  end\nend",
+  "diagnosis": "RedactDocumentWorker processes redaction jobs without checking whether requester_id has write access to document_id. An unauthorized user can irreversibly redact and obscure critical text in legal documents belonging to other organizations.",
+  "exploit_request": "POST /api/documents/doc_8831/redact HTTP/1.1\nHost: legal.ediscovery-suite.com\nAuthorization: Bearer clerk_token_19\nContent-Type: application/json",
+  "corrected_code": "class RedactDocumentWorker\n  include Sidekiq::Worker\n\n  def perform(document_id, requester_id)\n    document = Document.find(document_id)\n    user = User.find(requester_id)\n    raise 'Forbidden' unless user.can_edit?(document)\n\n    document.apply_redactions!\n  end\nend\n\nclass DocumentsController < ApplicationController\n  def redact\n    document = current_user.documents.find(params[:id])\n    RedactDocumentWorker.perform_async(document.id, current_user.id)\n    render json: { status: 'Redaction started' }\n  end\nend",
+  "severity": "MEDIUM",
+  "confidence": 0.88
+}

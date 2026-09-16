@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const BeeQueue = require('bee-queue');\nconst backupQueue = new BeeQueue('database-backups', { isWorker: false });\n\nrouter.get('/api/backups/status/:jobId', verifyToken, async (req, res) => {\n  const job = await backupQueue.getJob(req.params.jobId);\n  if (!job) return res.status(404).json({ error: 'Backup job not found' });\n  res.json({\n    status: job.status,\n    progress: job.progress,\n    dumpLocation: job.data.backupLocation,\n    databaseName: job.data.dbName\n  });\n});",
+  "diagnosis": "Bee-Queue job inspector exposes internal backup locations and database names by jobId from the URL path. It does not ensure job.data.tenantId === req.user.tenantId, leaking database dump file paths and backup statuses of other tenants.",
+  "exploit_request": "GET /api/backups/status/88421 HTTP/1.1\nHost: db-ops.saascloud.com\nAuthorization: Bearer <tenant_b_jwt>",
+  "corrected_code": "const BeeQueue = require('bee-queue');\nconst backupQueue = new BeeQueue('database-backups', { isWorker: false });\n\nrouter.get('/api/backups/status/:jobId', verifyToken, async (req, res) => {\n  const job = await backupQueue.getJob(req.params.jobId);\n  if (!job) return res.status(404).json({ error: 'Backup job not found' });\n  if (job.data.tenantId !== req.user.tenantId && !req.user.isSuperAdmin) {\n    return res.status(403).json({ error: 'Access denied: backup job belongs to another tenant' });\n  }\n  res.json({\n    status: job.status,\n    progress: job.progress,\n    dumpLocation: job.data.backupLocation,\n    databaseName: job.data.dbName\n  });\n});",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const proxy = require('express-http-proxy');\n\napp.use('/docs/:docId/download', authenticateUser, proxy(process.env.STORAGE_MICROSERVICE_URL, {\n  proxyReqPathResolver: (req) => {\n    return `/internal/presign/documents/${req.params.docId}`;\n  }\n}));",
+  "diagnosis": "The proxy forwards requests to an internal storage microservice to obtain presigned download URLs for docId. It authenticates the user, but never validates whether the user has read permissions on docId before proxying. Any authenticated user can download confidential contracts, medical records, or tax documents belonging to any user.",
+  "exploit_request": "GET /docs/doc_tax_return_2025_confidential/download HTTP/1.1\nHost: storage.enterprise.io\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "const proxy = require('express-http-proxy');\n\napp.use('/docs/:docId/download', authenticateUser, async (req, res, next) => {\n  const doc = await db.query(\n    'SELECT id FROM user_documents WHERE id = $1 AND owner_id = $2',\n    [req.params.docId, req.user.id]\n  );\n  if (doc.rowCount === 0) {\n    return res.status(403).json({ error: 'Access denied: document does not belong to you' });\n  }\n  next();\n}, proxy(process.env.STORAGE_MICROSERVICE_URL, {\n  proxyReqPathResolver: (req) => {\n    return `/internal/presign/documents/${req.params.docId}`;\n  }\n}));",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const { createProxyMiddleware } = require('http-proxy-middleware');\n\napp.use('/api/v1/billing', authenticateClient, (req, res, next) => {\n  const targetTenantId = req.headers['x-tenant-id'] || req.query.tenantId;\n  createProxyMiddleware({\n    target: process.env.INTERNAL_BILLING_SERVICE_URL,\n    changeOrigin: true,\n    onProxyReq: (proxyReq) => {\n      proxyReq.setHeader('x-forwarded-tenant', targetTenantId);\n    }\n  })(req, res, next);\n});",
+  "diagnosis": "The API gateway proxy blindly extracts targetTenantId from client headers (x-tenant-id) or query parameters and forwards it as x-forwarded-tenant to the internal billing microservice. Because internal microservices trust gateway headers for tenant scoping, any client can access billing invoices, customer subscriptions, and credit card profiles of other tenants.",
+  "exploit_request": "GET /api/v1/billing/invoices/latest HTTP/1.1\nHost: gateway.saasplatform.com\nAuthorization: Bearer <attacker_jwt>\nX-Tenant-Id: tenant_victim_finance_corp",
+  "corrected_code": "const { createProxyMiddleware } = require('http-proxy-middleware');\n\napp.use('/api/v1/billing', authenticateClient, (req, res, next) => {\n  const verifiedTenantId = req.user.tenantId;\n  createProxyMiddleware({\n    target: process.env.INTERNAL_BILLING_SERVICE_URL,\n    changeOrigin: true,\n    onProxyReq: (proxyReq) => {\n      proxyReq.setHeader('x-forwarded-tenant', verifiedTenantId);\n    }\n  })(req, res, next);\n});",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

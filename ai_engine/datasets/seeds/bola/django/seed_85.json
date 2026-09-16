@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\n@require_POST\ndef revert_page_revision_view(request, revision_id):\n    revision = get_object_or_404(Revision, id=revision_id)\n    page = revision.content_object.specific\n    revision.publish()\n    return JsonResponse({'status': 'reverted and published', 'page_id': page.id, 'revision_id': revision.id})",
+  "diagnosis": "The endpoint retrieves a Wagtail page Revision by ID and immediately publishes it without checking whether request.user has edit or publish permissions on the underlying page. Any logged-in user can revert and publish historical revisions of arbitrary pages.",
+  "exploit_request": "POST /cms-custom/revisions/482/revert/ HTTP/1.1\nHost: wagtail.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "@login_required\n@require_POST\ndef revert_page_revision_view(request, revision_id):\n    revision = get_object_or_404(Revision, id=revision_id)\n    page = revision.content_object.specific\n    page_perms = page.permissions_for_user(request.user)\n    if not (page_perms.can_edit() and page_perms.can_publish()):\n        raise PermissionDenied(\"Insufficient permissions to revert and publish this page revision.\")\n    revision.publish()\n    return JsonResponse({'status': 'reverted and published', 'page_id': page.id, 'revision_id': revision.id})",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

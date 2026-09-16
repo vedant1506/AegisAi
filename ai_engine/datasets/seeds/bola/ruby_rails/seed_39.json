@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class InvitationsController < ApplicationController\n  def create\n    # Permits workspace_id directly from user input\n    @invitation = Invitation.new(invitation_params)\n    @invitation.sender = current_user\n\n    if @invitation.save\n      render json: @invitation, status: :created\n    else\n      render json: @invitation.errors, status: :unprocessable_entity\n    end\n  end\n\n  private\n\n  def invitation_params\n    params.require(:invitation).permit(:recipient_email, :role, :workspace_id)\n  end\nend",
+  "diagnosis": "Permitting workspace_id in strong parameters allows an authenticated user to dispatch workspace invitations for any workspace on the platform. An attacker can add colluding accounts with admin privileges into foreign corporate workspaces.",
+  "exploit_request": "POST /api/invitations HTTP/1.1\nHost: app.enterprise-collab.net\nAuthorization: Bearer member_token_901\nContent-Type: application/json\n\n{\"invitation\": {\"recipient_email\": \"infiltrator@hacker.io\", \"role\": \"admin\", \"workspace_id\": 19}}",
+  "corrected_code": "class InvitationsController < ApplicationController\n  def create\n    workspace = current_user.administered_workspaces.find(params[:workspace_id])\n    @invitation = workspace.invitations.build(invitation_params)\n    @invitation.sender = current_user\n\n    if @invitation.save\n      render json: @invitation, status: :created\n    else\n      render json: @invitation.errors, status: :unprocessable_entity\n    end\n  end\n\n  private\n\n  def invitation_params\n    params.require(:invitation).permit(:recipient_email, :role)\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

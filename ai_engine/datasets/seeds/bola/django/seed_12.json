@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ExpenseClaimSerializer(serializers.ModelSerializer):\n    payout_bank_account = serializers.PrimaryKeyRelatedField(\n        queryset=BankAccount.objects.all()\n    )\n\n    class Meta:\n        model = ExpenseClaim\n        fields = ['id', 'amount', 'category', 'description', 'payout_bank_account']",
+  "diagnosis": "The serializer defines payout_bank_account using BankAccount.objects.all() as the queryset. During creation or update, any authenticated employee can link another employee's bank account ID, redirecting expense payouts to an unauthorized account.",
+  "exploit_request": "POST /api/v1/expense-claims/ HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"amount\": \"4500.00\", \"category\": \"Travel\", \"description\": \"Client summit\", \"payout_bank_account\": 389}",
+  "corrected_code": "class ExpenseClaimSerializer(serializers.ModelSerializer):\n    payout_bank_account = serializers.PrimaryKeyRelatedField(\n        queryset=BankAccount.objects.none()\n    )\n\n    def __init__(self, *args, **kwargs):\n        super().__init__(*args, **kwargs)\n        request = self.context.get('request')\n        if request and request.user.is_authenticated:\n            self.fields['payout_bank_account'].queryset = BankAccount.objects.filter(user=request.user)\n\n    class Meta:\n        model = ExpenseClaim\n        fields = ['id', 'amount', 'category', 'description', 'payout_bank_account']",
+  "severity": "CRITICAL",
+  "confidence": 0.95
+}

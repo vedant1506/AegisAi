@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "io.on('connection', (socket) => {\n  socket.on('chat:delete_message', async ({ channelId, messageId }) => {\n    await db('channel_messages').where({ id: messageId }).delete();\n    io.to(`channel:${channelId}`).emit('message_deleted', { messageId });\n  });\n});",
+  "diagnosis": "The socket handler executes an unconditional SQL deletion query using messageId provided in the event payload. It does not check if socket.data.userId is the author of the message or a channel administrator, permitting any channel member to erase messages posted by others.",
+  "exploit_request": "socket.emit('chat:delete_message', {\n  channelId: 'general',\n  messageId: 88410\n});",
+  "corrected_code": "io.on('connection', (socket) => {\n  socket.on('chat:delete_message', async ({ channelId, messageId }) => {\n    const msg = await db('channel_messages').where({ id: messageId, channel_id: channelId }).first();\n    if (!msg || (msg.author_id !== socket.data.userId && !socket.data.isAdmin)) {\n      return socket.emit('error', { message: 'Cannot delete messages authored by other users' });\n    }\n    await db('channel_messages').where({ id: messageId }).delete();\n    io.to(`channel:${channelId}`).emit('message_deleted', { messageId });\n  });\n});",
+  "severity": "LOW",
+  "confidence": 0.91
+}

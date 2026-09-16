@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ConsentFormPolicy < ApplicationPolicy\n  def destroy?\n    # Checks facility clinic match but fails to check assigned physician authority\n    user.present? && (record.patient.clinic_id == user.clinic_id)\n  end\nend\n\nclass Clinic::ConsentFormsController < ApplicationController\n  def destroy\n    @form = ConsentForm.find(params[:id])\n    authorize @form\n\n    @form.destroy!\n    head :no_content\n  end\nend",
+  "diagnosis": "ConsentFormPolicy#destroy? validates clinic_id equality but allows any clinic staff member, including desk receptionists, to permanently delete signed surgical and HIPAA consent waivers across unrelated doctors in multi-practice facilities.",
+  "exploit_request": "DELETE /api/clinic/consent_forms/cfm_9011 HTTP/1.1\nHost: emr.medgroup-systems.com\nAuthorization: Bearer receptionist_session_912\nAccept: application/json",
+  "corrected_code": "class ConsentFormPolicy < ApplicationPolicy\n  def destroy?\n    return false unless user.present? && record.patient.clinic_id == user.clinic_id\n    user.clinic_director? || (user.physician? && record.assigned_doctor_id == user.id)\n  end\nend\n\nclass Clinic::ConsentFormsController < ApplicationController\n  def destroy\n    @form = ConsentForm.find(params[:id])\n    authorize @form\n\n    @form.destroy!\n    head :no_content\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.89
+}

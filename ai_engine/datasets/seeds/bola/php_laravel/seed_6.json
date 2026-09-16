@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\Document;\nuse Illuminate\\Auth\\Access\\HandlesAuthorization;\n\nclass DocumentPolicy\n{\n    use HandlesAuthorization;\n\n    public function update(User $user, Document $document): bool\n    {\n        // Flawed policy check: verifies user has role 'editor' but misses team_id tenancy isolation\n        return $user->role === 'editor' || $user->id === $document->author_id;\n    }\n}",
+  "diagnosis": "The DocumentPolicy update method grants write permissions to any user with the 'editor' role without ensuring that the editor belongs to the same tenant or team as the document. An editor from Company A can update, alter, or tamper with confidential documents created by Company B.",
+  "exploit_request": "PATCH /api/documents/749 HTTP/1.1\nHost: docs.workspacesync.io\nAuthorization: Bearer 18|mN8bV7cX6zL5kP4jH3gF2dE1sA0qW9rT\nContent-Type: application/json\n\n{\"title\": \"Compromised Financial Audit\", \"body\": \"Unauthorized modification\"}",
+  "corrected_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\Document;\nuse Illuminate\\Auth\\Access\\HandlesAuthorization;\n\nclass DocumentPolicy\n{\n    use HandlesAuthorization;\n\n    public function update(User $user, Document $document): bool\n    {\n        if ($user->team_id !== $document->team_id) {\n            return false;\n        }\n\n        return $user->role === 'editor' || $user->id === $document->author_id;\n    }\n}",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

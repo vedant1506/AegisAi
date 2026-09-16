@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "def edit_review(request, review_id):\n    review = Review.objects.get(id=review_id)\n    data = json.loads(request.body)\n    review.text = data['text']\n    review.save()\n    return JsonResponse({'status': 'success'})",
+  "diagnosis": "A review object is fetched and modified using the review_id from the path. It does not check if the review belongs to the user attempting the edit.",
+  "exploit_request": "POST /api/reviews/10/edit HTTP/1.1\nHost: api.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/json\n\n{\"text\": \"Changed review text by attacker\"}",
+  "corrected_code": "def edit_review(request, review_id):\n    review = get_object_or_404(Review, id=review_id)\n    if review.author != request.user:\n        return HttpResponseForbidden()\n    data = json.loads(request.body)\n    review.text = data['text']\n    review.save()\n    return JsonResponse({'status': 'success'})"
+}

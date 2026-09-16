@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class IsAuthorizedWorkspaceMember(permissions.BasePermission):\n    def has_object_permission(self, request, view, obj):\n        target_workspace_id = request.data.get('workspace_id')\n        if not target_workspace_id:\n            return False\n        return request.user.workspaces.filter(id=target_workspace_id).exists()\n\nclass WorkspaceDocumentUpdateView(generics.UpdateAPIView):\n    queryset = WorkspaceDocument.objects.all()\n    serializer_class = DocumentSerializer\n    permission_classes = [permissions.IsAuthenticated, IsAuthorizedWorkspaceMember]",
+  "diagnosis": "The custom permission class evaluates authorization using target_workspace_id extracted from request.data rather than the persistent workspace attribute of the target object (obj.workspace_id). An attacker can submit an update payload targeting another company's document while specifying their own workspace_id in the JSON body.",
+  "exploit_request": "PATCH /api/workspace-documents/3041/ HTTP/1.1\nHost: api.enterprise.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"workspace_id\": 12, \"title\": \"Defaced Document\", \"body\": \"Overwritten\"}",
+  "corrected_code": "class IsAuthorizedWorkspaceMember(permissions.BasePermission):\n    def has_object_permission(self, request, view, obj):\n        return request.user.workspaces.filter(id=obj.workspace_id).exists()\n\nclass WorkspaceDocumentUpdateView(generics.UpdateAPIView):\n    queryset = WorkspaceDocument.objects.all()\n    serializer_class = DocumentSerializer\n    permission_classes = [permissions.IsAuthenticated, IsAuthorizedWorkspaceMember]",
+  "severity": "CRITICAL",
+  "confidence": 0.95
+}

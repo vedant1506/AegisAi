@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class IncidentNoteListView(LoginRequiredMixin, ListView):\n    model = IncidentNote\n    context_object_name = 'notes'\n    template_name = 'incidents/notes_list.html'\n\n    def get_queryset(self):\n        incident_id = self.request.GET.get('incident_id')\n        return IncidentNote.objects.filter(incident_id=incident_id).order_by('created_at')",
+  "diagnosis": "The view lists all internal notes associated with an incident_id supplied in the query string without validating that the authenticated user's organization owns or is assigned to the incident.",
+  "exploit_request": "GET /incidents/notes/?incident_id=3024 HTTP/1.1\nHost: support.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "class IncidentNoteListView(LoginRequiredMixin, ListView):\n    model = IncidentNote\n    context_object_name = 'notes'\n    template_name = 'incidents/notes_list.html'\n\n    def get_queryset(self):\n        incident_id = self.request.GET.get('incident_id')\n        incident = get_object_or_404(Incident, id=incident_id, organization=self.request.user.organization)\n        return IncidentNote.objects.filter(incident=incident).order_by('created_at')",
+  "severity": "LOW",
+  "confidence": 0.89
+}

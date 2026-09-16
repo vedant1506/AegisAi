@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@strawberry.type\nclass Mutation:\n    @strawberry.mutation\n    def revoke_api_key(self, info: Info, key_id: int) -> OperationStatus:\n        db: Session = info.context[\"db\"]\n        deleted = db.query(ApiKey).filter(ApiKey.id == key_id).delete()\n        db.commit()\n        return OperationStatus(success=deleted > 0)",
+  "diagnosis": "The revoke_api_key mutation executes a direct deletion against ApiKey where id == key_id without verifying that the API key belongs to info.context['user'].id. Any authenticated user can revoke other users' API credentials by guessing or enumerating integer key IDs.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"query\": \"mutation { revokeApiKey(keyId: 981) { success } }\"}",
+  "corrected_code": "@strawberry.type\nclass Mutation:\n    @strawberry.mutation\n    def revoke_api_key(self, info: Info, key_id: int) -> OperationStatus:\n        db: Session = info.context[\"db\"]\n        user = info.context[\"user\"]\n        deleted = db.query(ApiKey).filter(ApiKey.id == key_id, ApiKey.user_id == user.id).delete()\n        db.commit()\n        return OperationStatus(success=deleted > 0)",
+  "severity": "MEDIUM",
+  "confidence": 0.89
+}

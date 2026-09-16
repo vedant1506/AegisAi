@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@require_http_methods([\"DELETE\"])\ndef terminate_db_cluster(request, cluster_id):\n    cluster = ManagedDatabaseCluster.objects.get(id=cluster_id)\n    cluster.delete()\n    return JsonResponse({'status': 'terminating'})\n\n@receiver(pre_delete, sender=ManagedDatabaseCluster)\ndef teardown_cloud_rds(sender, instance, **kwargs):\n    rds_client.delete_db_cluster(\n        DBClusterIdentifier=instance.cloud_resource_id,\n        SkipFinalSnapshot=True\n    )",
+  "diagnosis": "The view fetches ManagedDatabaseCluster by cluster_id and calls delete() without verifying ownership. The pre_delete signal handler immediately issues an API call to delete the cloud database cluster without a snapshot, allowing an unauthorized user to destroy production databases.",
+  "exploit_request": "DELETE /api/clusters/db-9912/ HTTP/1.1\nHost: cloud.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "@require_http_methods([\"DELETE\"])\ndef terminate_db_cluster(request, cluster_id):\n    cluster = get_object_or_404(ManagedDatabaseCluster, id=cluster_id, tenant=request.user.tenant)\n    cluster.delete()\n    return JsonResponse({'status': 'terminating'})\n\n@receiver(pre_delete, sender=ManagedDatabaseCluster)\ndef teardown_cloud_rds(sender, instance, **kwargs):\n    rds_client.delete_db_cluster(\n        DBClusterIdentifier=instance.cloud_resource_id,\n        SkipFinalSnapshot=True\n    )",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

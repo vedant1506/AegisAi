@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\n\n// routes/channels.php\nBroadcast::channel('portfolio.{accountId}', function (User $user, int $accountId) {\n    // Flawed logic: compares a static primary account ID, failing for multi-account users or unauthorized IDs\n    return (int) $user->account_id === (int) $accountId;\n});",
+  "diagnosis": "The trading portfolio presence channel authorization callback compares against a single legacy column rather than querying the user's authorized institutional account relationships. Furthermore, when users belong to multiple corporate desks, users can trigger channel subscriptions using other desks' account identifiers without role verification.",
+  "exploit_request": "POST /broadcasting/auth HTTP/1.1\nHost: trading.apex-capital.com\nAuthorization: Bearer 12|traderjwt883311\nContent-Type: application/json\n\n{\"socket_id\": \"81920.4412\", \"channel_name\": \"private-portfolio.9042\"}",
+  "corrected_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\n\n// routes/channels.php\nBroadcast::channel('portfolio.{accountId}', function (User $user, int $accountId) {\n    return $user->tradingAccounts()\n        ->where('accounts.id', $accountId)\n        ->wherePivot('is_active', true)\n        ->exists();\n});",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

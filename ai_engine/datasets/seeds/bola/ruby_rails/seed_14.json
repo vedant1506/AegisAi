@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Ability\n  include CanCan::Ability\n\n  def initialize(user)\n    return unless user.present?\n\n    # Misconfiguration: when user.tenant_id is nil (e.g. pending contractor),\n    # this condition matches all CustomerLead records where tenant_id IS NULL\n    can [:read, :update], CustomerLead, tenant_id: user.tenant_id\n  end\nend\n\nclass Crm::LeadsController < ApplicationController\n  def show\n    @lead = CustomerLead.find(params[:id])\n    authorize! :read, @lead\n    render json: @lead\n  end\nend",
+  "diagnosis": "The Ability class binds permissions to user.tenant_id without asserting that user.tenant_id is present. For unassigned contractors or pending signups where tenant_id is nil, the rule grants read and update access to all unassigned enterprise leads.",
+  "exploit_request": "GET /api/crm/leads/lead_6619 HTTP/1.1\nHost: crm.pipeline-sales.com\nAuthorization: Bearer unassigned_contractor_session\nAccept: application/json",
+  "corrected_code": "class Ability\n  include CanCan::Ability\n\n  def initialize(user)\n    return unless user.present? && user.tenant_id.present?\n\n    can [:read, :update], CustomerLead, tenant_id: user.tenant_id\n  end\nend\n\nclass Crm::LeadsController < ApplicationController\n  def show\n    @lead = CustomerLead.find(params[:id])\n    authorize! :read, @lead\n    render json: @lead\n  end\nend",
+  "severity": "MEDIUM",
+  "confidence": 0.89
+}
