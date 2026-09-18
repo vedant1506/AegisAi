@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const cluster = require('cluster');\nconst express = require('express');\nconst { authenticateMerchant } = require('../auth');\n\nconst router = express.Router();\n\nrouter.post('/api/store/search-index/rebuild', authenticateMerchant, (req, res) => {\n  const { storeId } = req.body;\n\n  // Signal cluster master to trigger heavy search re-indexing on storeId\n  process.send({\n    type: 'TRIGGER_STORE_INDEX_REBUILD',\n    storeId: storeId\n  });\n\n  res.json({ status: 'rebuild_dispatched', storeId });\n});",
+  "diagnosis": "The handler takes storeId from the request body and commands the cluster master to rebuild the product search index. It does not verify that the authenticated merchant owns storeId, permitting rival merchants to trigger resource-intensive index rebuilds on competitor stores, degrading their catalog performance.",
+  "exploit_request": "POST /api/store/search-index/rebuild HTTP/1.1\nHost: marketplace.ecommerce.com\nAuthorization: Bearer <attacker_merchant_key>\nContent-Type: application/json\n\n{\"storeId\": \"str_competitor_electronics_01\"}",
+  "corrected_code": "const cluster = require('cluster');\nconst express = require('express');\nconst { authenticateMerchant } = require('../auth');\n\nconst router = express.Router();\n\nrouter.post('/api/store/search-index/rebuild', authenticateMerchant, (req, res) => {\n  const { storeId } = req.body;\n\n  if (req.merchant.storeId !== storeId) {\n    return res.status(403).json({ error: 'Forbidden: you cannot manage index operations for another store' });\n  }\n\n  process.send({\n    type: 'TRIGGER_STORE_INDEX_REBUILD',\n    storeId: storeId\n  });\n\n  res.json({ status: 'rebuild_dispatched', storeId });\n});",
+  "severity": "LOW",
+  "confidence": 0.81
+}

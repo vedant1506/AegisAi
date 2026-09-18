@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const patientSubscriptionResolvers = {\n  Subscription: {\n    patientVitalsAlert: {\n      subscribe: withFilter(\n        () => pubsub.asyncIterator(['VITALS_ALERT_CHANNEL']),\n        (payload, args) => payload.patientId === args.patientId\n      ),\n      resolve: (payload) => payload.vitalSigns\n    }\n  }\n};",
+  "diagnosis": "The subscription filters telemetry alerts strictly by matching patientId between payload and arguments. It ignores context.user, allowing any hospital staff account or external user with a valid JWT to stream real-time cardiac rhythm and blood pressure emergency alerts for patients they do not treat.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: api.clinicflow.org\nUpgrade: websocket\nSec-WebSocket-Protocol: graphql-transport-ws\n\n{\"type\": \"subscribe\", \"id\": \"vitals_sub\", \"payload\": {\"query\": \"subscription { patientVitalsAlert(patientId: \\\"pat_cardiac_412\\\") { heartRate spO2 alertType } }\"}}",
+  "corrected_code": "const patientSubscriptionResolvers = {\n  Subscription: {\n    patientVitalsAlert: {\n      subscribe: withFilter(\n        () => pubsub.asyncIterator(['VITALS_ALERT_CHANNEL']),\n        async (payload, args, context) => {\n          if (!context.currentUser || payload.patientId !== args.patientId) return false;\n          const assigned = await CareTeamMember.findOne({\n            where: { staffId: context.currentUser.id, patientId: args.patientId, active: true }\n          });\n          return !!assigned;\n        }\n      ),\n      resolve: (payload) => payload.vitalSigns\n    }\n  }\n};",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

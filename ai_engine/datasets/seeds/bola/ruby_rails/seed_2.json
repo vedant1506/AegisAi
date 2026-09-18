@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Api::V1::ApiKeysController < Api::BaseController\n  def revoke\n    # Directly locating API key by ID without scoping to current_organization\n    api_key = ApiKey.find_by(id: params[:id])\n    return render_not_found unless api_key\n\n    api_key.update!(revoked_at: Time.current, status: :inactive)\n    render json: { status: 'revoked', key_id: api_key.id }, status: :ok\n  end\nend",
+  "diagnosis": "The revoke action resolves an ApiKey record by un-scoped ID rather than scoping queries through the caller's organization. An authenticated member from one organization can revoke production API credentials belonging to any other organization, causing severe denial of service.",
+  "exploit_request": "POST /api/v1/api_keys/key_89923/revoke HTTP/1.1\nHost: cloud.devops-platform.io\nAuthorization: Bearer org_user_token_334\nContent-Type: application/json",
+  "corrected_code": "class Api::V1::ApiKeysController < Api::BaseController\n  def revoke\n    api_key = current_organization.api_keys.find(params[:id])\n    api_key.update!(revoked_at: Time.current, status: :inactive)\n    render json: { status: 'revoked', key_id: api_key.id }, status: :ok\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

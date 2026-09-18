@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "import { json, ActionFunctionArgs } from '@remix-run/node';\nimport { pool } from '~/pg.server';\nimport { requireAuth } from '~/auth.server';\n\nexport async function action({ request, params }: ActionFunctionArgs) {\n  await requireAuth(request);\n\n  // Dismisses system alert notification\n  await pool.query(\n    \"UPDATE user_alerts SET is_dismissed = true WHERE id = $1\",\n    [params.alertId]\n  );\n\n  return json({ dismissed: true, alertId: params.alertId });\n}",
+  "diagnosis": "The Remix action marks an alert as dismissed solely using params.alertId without verifying that the alert's recipient matches the authenticated user, allowing users to dismiss security alerts for other accounts.",
+  "exploit_request": "POST /alerts/alt_critical_mfa_warning_9918/dismiss HTTP/1.1\nHost: dashboard.saasportal.io\nCookie: session_token=attacker_user_session",
+  "corrected_code": "import { json, ActionFunctionArgs } from '@remix-run/node';\nimport { pool } from '~/pg.server';\nimport { requireAuth } from '~/auth.server';\n\nexport async function action({ request, params }: ActionFunctionArgs) {\n  const user = await requireAuth(request);\n\n  const result = await pool.query(\n    \"UPDATE user_alerts SET is_dismissed = true WHERE id = $1 AND user_id = $2 RETURNING id\",\n    [params.alertId, user.id]\n  );\n  if (!result.rows.length) {\n    return json({ error: 'Alert not found or unauthorized' }, { status: 403 });\n  }\n\n  return json({ dismissed: true, alertId: params.alertId });\n}",
+  "severity": "LOW",
+  "confidence": 0.84
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@Controller('orders')\n@UseGuards(AuthGuard('jwt'))\nexport class OrderReturnController {\n  constructor(private readonly orderService: OrderService) {}\n\n  @Post(':orderId/return-request')\n  async requestReturn(\n    @Param('orderId') orderId: string,\n    @Body() dto: CreateReturnDto,\n    @CurrentUser() user: UserEntity,\n  ) {\n    const returnTicket = await this.orderService.createReturnTicket(orderId, dto.items, dto.reason);\n    return returnTicket;\n  }\n}",
+  "diagnosis": "Although the controller injects @CurrentUser(), the handler passes orderId directly from route parameters into orderService.createReturnTicket() without validating that the order was placed by the current user. An attacker can initiate return tickets and generate refund claims against purchases made by arbitrary customers.",
+  "exploit_request": "POST /orders/ord_893021/return-request HTTP/1.1\nHost: shop.example.com\nAuthorization: Bearer <customer_jwt>\nContent-Type: application/json\n\n{\"items\": [{\"sku\": \"SKU-992\", \"quantity\": 1}], \"reason\": \"Defective\"}",
+  "corrected_code": "@Controller('orders')\n@UseGuards(AuthGuard('jwt'))\nexport class OrderReturnController {\n  constructor(private readonly orderService: OrderService) {}\n\n  @Post(':orderId/return-request')\n  async requestReturn(\n    @Param('orderId') orderId: string,\n    @Body() dto: CreateReturnDto,\n    @CurrentUser() user: UserEntity,\n  ) {\n    const order = await this.orderService.findCustomerOrder(orderId, user.id);\n    if (!order) throw new ForbiddenException('Order does not belong to the current customer');\n    return await this.orderService.createReturnTicket(order.id, dto.items, dto.reason);\n  }\n}",
+  "severity": "MEDIUM",
+  "confidence": 0.95
+}

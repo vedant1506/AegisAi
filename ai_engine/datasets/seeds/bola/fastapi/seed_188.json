@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.delete(\"/clinical/prescriptions/{rx_pk}\")\nasync def delete_prescription_draft(\n    rx_pk: str,\n    current_user: User = Depends(get_current_user)\n):\n    try:\n        rx = PrescriptionDraft.get(rx_pk)\n    except NotFoundError:\n        raise HTTPException(status_code=404, detail=\"Prescription draft not found\")\n\n    PrescriptionDraft.delete(rx_pk)\n    return {\"status\": \"draft_deleted\", \"rx_pk\": rx_pk}",
+  "diagnosis": "The clinical route deletes a PrescriptionDraft stored in Redis OM based on rx_pk. It never checks whether rx.doctor_license_id matches current_user.license_id or that the prescriber created the draft, allowing unauthorized practitioners to cancel or delete prescriptions authored by other physicians.",
+  "exploit_request": "DELETE /clinical/prescriptions/01HJCD8901LMA89012490184A HTTP/1.1\nHost: rx.telehealth.org\nAuthorization: Bearer <doctor_jwt>",
+  "corrected_code": "@router.delete(\"/clinical/prescriptions/{rx_pk}\")\nasync def delete_prescription_draft(\n    rx_pk: str,\n    current_user: User = Depends(get_current_user)\n):\n    try:\n        rx = PrescriptionDraft.get(rx_pk)\n    except NotFoundError:\n        raise HTTPException(status_code=404, detail=\"Prescription draft not found\")\n\n    if rx.doctor_license_id != current_user.license_id and not current_user.is_clinical_director:\n        raise HTTPException(status_code=403, detail=\"Forbidden: cannot delete prescription authored by another physician\")\n\n    PrescriptionDraft.delete(rx_pk)\n    return {\"status\": \"draft_deleted\", \"rx_pk\": rx_pk}",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

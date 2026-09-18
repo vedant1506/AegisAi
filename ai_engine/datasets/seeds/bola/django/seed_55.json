@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "def get_user_kpi_dashboards(request):\n    dashboards = get_objects_for_user(\n        request.user,\n        'analytics.view_kpidashboard',\n        klass=KpiDashboard,\n        accept_global_perms=True\n    )\n    return JsonResponse({'dashboards': [{'id': d.id, 'title': d.title, 'org': d.organization_id} for d in dashboards]})",
+  "diagnosis": "The view queries dashboards using get_objects_for_user with accept_global_perms=True. When users hold a default role with a model-level view permission in their own workspace, guardian returns all KpiDashboard objects across all tenant organizations rather than restricting results to dashboards where object-level permission was explicitly granted.",
+  "exploit_request": "GET /api/analytics/dashboards/ HTTP/1.1\nHost: metrics.saas.example\nCookie: sessionid=analyst_cookie",
+  "corrected_code": "def get_user_kpi_dashboards(request):\n    dashboards = get_objects_for_user(\n        request.user,\n        'analytics.view_kpidashboard',\n        klass=KpiDashboard.objects.filter(organization=request.user.organization),\n        accept_global_perms=False\n    )\n    return JsonResponse({'dashboards': [{'id': d.id, 'title': d.title, 'org': d.organization_id} for d in dashboards]})",
+  "severity": "MEDIUM",
+  "confidence": 0.88
+}

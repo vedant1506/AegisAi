@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const resolveTicketAttachment = async (req, res, next) => {\n  const attachment = await AttachmentModel.findById(req.params.attachId);\n  if (!attachment) return res.status(404).send('File not found');\n  req.locals = { attachment };\n  next();\n};\n\napp.get('/api/tickets/:ticketId/attachments/:attachId', tokenAuth, resolveTicketAttachment, (req, res) => {\n  res.download(req.locals.attachment.filePath, req.locals.attachment.originalFilename);\n});",
+  "diagnosis": "The resolveTicketAttachment middleware retrieves the attachment file strictly using attachId without verifying that the file belongs to ticketId or that req.user is the creator or assigned support engineer for the ticket. An attacker can download sensitive screenshots and logs uploaded in private support tickets.",
+  "exploit_request": "GET /api/tickets/tkt_1029/attachments/att_priv_998120 HTTP/1.1\nHost: support.deskflow.com\nAuthorization: Bearer <customer_jwt>",
+  "corrected_code": "const resolveTicketAttachment = async (req, res, next) => {\n  const attachment = await AttachmentModel.findOne({ _id: req.params.attachId, ticketId: req.params.ticketId });\n  if (!attachment) return res.status(404).send('Attachment not found');\n  const ticket = await TicketModel.findOne({ _id: req.params.ticketId, customerId: req.user.id });\n  if (!ticket && !req.user.isSupportStaff) return res.status(403).send('Access denied to ticket attachment');\n  req.locals = { attachment };\n  next();\n};\n\napp.get('/api/tickets/:ticketId/attachments/:attachId', tokenAuth, resolveTicketAttachment, (req, res) => {\n  res.download(req.locals.attachment.filePath, req.locals.attachment.originalFilename);\n});",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

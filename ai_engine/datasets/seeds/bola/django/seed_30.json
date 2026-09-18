@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class PartnerAccountAdmin(admin.ModelAdmin):\n    def change_view(self, request, object_id, form_url='', extra_context=None):\n        partner = PartnerAccount.objects.get(pk=object_id)\n        extra_context = extra_context or {}\n        extra_context['apiKey'] = partner.api_signing_key\n        return super().change_view(request, object_id, form_url, extra_context=extra_context)",
+  "diagnosis": "change_view directly queries PartnerAccount.objects.get(pk=object_id) to attach the signing key to the template context before checking permissions. Any staff user who manipulates the URL ID can view the private API signing key of another partner account.",
+  "exploit_request": "GET /admin/partners/partneraccount/905/change/ HTTP/1.1\nHost: backoffice.example.com\nCookie: sessionid=staff_session",
+  "corrected_code": "class PartnerAccountAdmin(admin.ModelAdmin):\n    def change_view(self, request, object_id, form_url='', extra_context=None):\n        partner = self.get_object(request, object_id)\n        if partner is None or not self.has_change_permission(request, partner):\n            raise PermissionDenied()\n        extra_context = extra_context or {}\n        extra_context['apiKey'] = partner.api_signing_key\n        return super().change_view(request, object_id, form_url, extra_context=extra_context)",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

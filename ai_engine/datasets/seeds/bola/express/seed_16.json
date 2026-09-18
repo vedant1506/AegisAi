@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.get('/api/profile/list', (req, res) => {\n  Profile.find({ owner: req.query.userId }).then(items => res.json(items));\n});",
+  "diagnosis": "The list endpoint filters profile items based on a 'userId' provided in the query string, allowing an attacker to enumerate items of any user by changing the query parameter.",
+  "exploit_request": "GET /api/profile/list?userId=1337 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.get('/api/profile/list', (req, res) => {\n  Profile.find({ owner: req.session.userId }).then(items => res.json(items));\n});"
+}

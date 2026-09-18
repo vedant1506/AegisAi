@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "# app/views/posts/show.json.jbuilder\njson.extract! @post, :id, :title, :content, :published_at\n\n# Leaking author private editorial notes and bookmark classification tags\njson.author_private_tags @post.author_private_tags do |tag|\n  json.name tag.name\n  json.editorial_critique tag.critique_notes\nend",
+  "diagnosis": "The Jbuilder template includes author_private_tags and editorial notes on public articles. Unauthenticated visitors or regular readers can view private editorial critiques and reviewer remarks meant exclusively for the author.",
+  "exploit_request": "GET /api/blog/posts/post_9912.json HTTP/1.1\nHost: media.publishing-journal.org\nAuthorization: Bearer reader_sub_token_19\nAccept: application/json",
+  "corrected_code": "# app/views/posts/show.json.jbuilder\njson.extract! @post, :id, :title, :content, :published_at\n\nif current_user && (@post.user_id == current_user.id || current_user.editor?)\n  json.author_private_tags @post.author_private_tags do |tag|\n    json.name tag.name\n    json.editorial_critique tag.critique_notes\n  end\nend",
+  "severity": "LOW",
+  "confidence": 0.81
+}

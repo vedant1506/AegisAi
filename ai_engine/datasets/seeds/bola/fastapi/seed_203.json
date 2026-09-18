@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.post(\"/compute/instances/bulk-tag\")\nasync def bulk_tag_instances(\n    payload: TagUpdatePayload,\n    current_user: User = Depends(get_current_user)\n):\n    updated_count = await ComputeInstance.objects.filter(\n        id__in=payload.instance_ids\n    ).update(\n        security_zone=payload.security_zone,\n        metadata_tags=payload.tags\n    )\n    return {\"updated_instances\": updated_count}",
+  "diagnosis": "The endpoint executes a bulk update using ormar's ComputeInstance.objects.filter(id__in=...).update(...) without filtering by account_id=current_user.account_id. An attacker can submit instance IDs belonging to other cloud tenants and overwrite their security zones and operational metadata tags.",
+  "exploit_request": "POST /compute/instances/bulk-tag HTTP/1.1\nHost: cloud.gridcompute.net\nAuthorization: Bearer <tenant_token>\nContent-Type: application/json\n\n{\"instance_ids\": [1041, 1042, 1045], \"security_zone\": \"quarantined\", \"tags\": {\"env\": \"compromised\"}}",
+  "corrected_code": "@router.post(\"/compute/instances/bulk-tag\")\nasync def bulk_tag_instances(\n    payload: TagUpdatePayload,\n    current_user: User = Depends(get_current_user)\n):\n    updated_count = await ComputeInstance.objects.filter(\n        id__in=payload.instance_ids,\n        account_id=current_user.account_id\n    ).update(\n        security_zone=payload.security_zone,\n        metadata_tags=payload.tags\n    )\n    return {\"updated_instances\": updated_count}",
+  "severity": "MEDIUM",
+  "confidence": 0.93
+}

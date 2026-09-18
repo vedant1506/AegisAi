@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "def get_contract_summary(request, contract_uuid):\n    latest_milestone_payout = Subquery(\n        ContractMilestone.objects.filter(contract_id=OuterRef('id'))\n        .order_by('-due_date')\n        .values('payout_amount')[:1]\n    )\n    contract = Contract.objects.filter(uuid=contract_uuid).annotate(\n        next_payout=latest_milestone_payout\n    ).first()\n    if not contract:\n        return HttpResponseNotFound()\n    return JsonResponse({'title': contract.title, 'value': str(contract.total_value), 'next_payout': str(contract.next_payout)})",
+  "diagnosis": "The endpoint evaluates a subquery annotation on a Contract queried solely by contract_uuid. It does not enforce that contract.client == request.user or contract.contractor == request.user, exposing negotiated commercial terms and milestone amounts.",
+  "exploit_request": "GET /api/contracts/e9f3b145-8902-47dc-ba7e-908123abcdef/summary/ HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "def get_contract_summary(request, contract_uuid):\n    latest_milestone_payout = Subquery(\n        ContractMilestone.objects.filter(contract_id=OuterRef('id'))\n        .order_by('-due_date')\n        .values('payout_amount')[:1]\n    )\n    contract = Contract.objects.filter(\n        Q(client=request.user) | Q(contractor=request.user),\n        uuid=contract_uuid\n    ).annotate(next_payout=latest_milestone_payout).first()\n    if not contract:\n        return HttpResponseNotFound()\n    return JsonResponse({'title': contract.title, 'value': str(contract.total_value), 'next_payout': str(contract.next_payout)})",
+  "severity": "MEDIUM",
+  "confidence": 0.92
+}

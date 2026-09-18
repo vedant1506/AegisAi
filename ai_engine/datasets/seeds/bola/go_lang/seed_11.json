@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package support\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/models\"\n)\n\ntype TicketService struct {\n\tDB *gorm.DB\n}\n\nfunc (ts *TicketService) ListCustomTags(ctx context.Context, ticketID string) ([]models.TicketTag, error) {\n\tvar tags []models.TicketTag\n\n\t// BOLA: Finds internal support tags by ticketID without scoping by organization.\n\terr := ts.DB.WithContext(ctx).Where(\"ticket_id = ?\", ticketID).Find(&tags).Error\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn tags, nil\n}\n",
+  "diagnosis": "The ListCustomTags method finds tag entities associated with a ticket ID without verifying if the ticket belongs to the tenant of the requesting customer. An external customer can enumerate internal staff tags (e.g., 'vip-escalation', 'churn-risk') assigned to tickets of other companies.",
+  "exploit_request": "GET /support/tickets/tick_5021/tags HTTP/1.1\nHost: helpdesk.saas.io\nAuthorization: Bearer customer_jwt_beta\nAccept: application/json",
+  "corrected_code": "package support\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/auth\"\n\t\"myapp/models\"\n)\n\ntype TicketService struct {\n\tDB *gorm.DB\n}\n\nfunc (ts *TicketService) ListCustomTags(ctx context.Context, ticketID string) ([]models.TicketTag, error) {\n\tvar tags []models.TicketTag\n\ttenantID := auth.GetTenantID(ctx)\n\n\terr := ts.DB.WithContext(ctx).\n\t\tJoins(\"JOIN support_tickets ON support_tickets.id = ticket_tags.ticket_id\").\n\t\tWhere(\"ticket_tags.ticket_id = ? AND support_tickets.tenant_id = ?\", ticketID, tenantID).\n\t\tFind(&tags).Error\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn tags, nil\n}\n",
+  "severity": "MEDIUM",
+  "confidence": 0.87
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class RepositorySerializer < ActiveModel::Serializer\n  attributes :id, :slug, :visibility, :clone_url\n\n  # Embeds private deploy keys and secrets for any user who can read repository metadata\n  has_many :deploy_keys\nend\n\nclass RepositoriesController < ApplicationController\n  def show\n    repo = Repository.find(params[:id])\n    render json: repo\n  end\nend",
+  "diagnosis": "RepositorySerializer renders the deploy_keys association without checking repository admin privileges. Any user with read-only access to a code repository can extract private SSH deployment keys and signing secrets.",
+  "exploit_request": "GET /api/repos/repo_3391 HTTP/1.1\nHost: git.developer-forge.io\nAuthorization: Bearer contractor_read_token\nAccept: application/json",
+  "corrected_code": "class RepositorySerializer < ActiveModel::Serializer\n  attributes :id, :slug, :visibility, :clone_url\n\n  has_many :deploy_keys, if: :admin_viewer?\n\n  def admin_viewer?\n    scope&.admin_of?(object)\n  end\nend\n\nclass RepositoriesController < ApplicationController\n  def show\n    repo = Repository.find(params[:id])\n    render json: repo\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

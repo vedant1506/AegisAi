@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from ninja import Router, Schema\nfrom ninja.security import HttpBearer\nfrom .models import MarketingArticle\n\nclass BulkDeleteSchema(Schema):\n    article_ids: list[int]\n\nrouter = Router(auth=HttpBearer())\n\n@router.delete(\"/articles/bulk\", response={204: None})\ndef delete_draft_articles(request, data: BulkDeleteSchema):\n    MarketingArticle.objects.filter(\n        id__in=data.article_ids,\n        status=\"draft\"\n    ).delete()\n    return 204, None",
+  "diagnosis": "The bulk deletion route deletes articles matching article_ids as long as their status is 'draft'. It fails to restrict the queryset by author or workspace (author=request.auth), permitting any authenticated author to delete draft campaigns and content created by other editorial teams.",
+  "exploit_request": "DELETE /api/articles/bulk HTTP/1.1\nHost: cms.mediahub.com\nAuthorization: Bearer <author_jwt>\nContent-Type: application/json\n\n{\"article_ids\": [102, 103, 104, 105]}",
+  "corrected_code": "from ninja import Router, Schema\nfrom ninja.security import HttpBearer\nfrom .models import MarketingArticle\n\nclass BulkDeleteSchema(Schema):\n    article_ids: list[int]\n\nrouter = Router(auth=HttpBearer())\n\n@router.delete(\"/articles/bulk\", response={204: None})\ndef delete_draft_articles(request, data: BulkDeleteSchema):\n    MarketingArticle.objects.filter(\n        id__in=data.article_ids,\n        status=\"draft\",\n        author=request.auth\n    ).delete()\n    return 204, None",
+  "severity": "MEDIUM",
+  "confidence": 0.89
+}

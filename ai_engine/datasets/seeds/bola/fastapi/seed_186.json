@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get(\"/reporting/dashboards/find\")\nasync def find_analytics_dashboards(\n    category: str = Query(...),\n    current_user: User = Depends(get_current_user)\n):\n    dashboards = AnalyticsDashboard.find(\n        AnalyticsDashboard.category == category\n    ).all()\n    return [{\"pk\": d.pk, \"title\": d.title, \"layout\": d.layout_config} for d in dashboards]",
+  "diagnosis": "The dashboard discovery endpoint queries Redis OM using AnalyticsDashboard.find() filtering solely by category. It does not scope the search expression to current_user.organization_id, returning business intelligence dashboard layouts across all tenant organizations.",
+  "exploit_request": "GET /reporting/dashboards/find?category=executive_financials HTTP/1.1\nHost: bi.cloudanalytics.net\nAuthorization: Bearer <regular_user_token>",
+  "corrected_code": "@router.get(\"/reporting/dashboards/find\")\nasync def find_analytics_dashboards(\n    category: str = Query(...),\n    current_user: User = Depends(get_current_user)\n):\n    dashboards = AnalyticsDashboard.find(\n        (AnalyticsDashboard.category == category) &\n        (AnalyticsDashboard.organization_id == current_user.organization_id)\n    ).all()\n    return [{\"pk\": d.pk, \"title\": d.title, \"layout\": d.layout_config} for d in dashboards]",
+  "severity": "LOW",
+  "confidence": 0.84
+}

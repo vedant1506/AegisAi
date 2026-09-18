@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\n@require_POST\ndef reassign_social_identity(request):\n    social_account_id = request.POST.get('social_id')\n    social_account = SocialAccount.objects.get(id=social_account_id)\n    social_account.user = request.user\n    social_account.save(update_fields=['user'])\n    return JsonResponse({'status': 'identity linked', 'user_id': request.user.id})",
+  "diagnosis": "The view takes social_id from the POST payload and reassigns that SocialAccount instance to request.user without validating ownership verification tokens or ensuring the target social account is already associated with the requesting user.",
+  "exploit_request": "POST /accounts/social/relink/ HTTP/1.1\nHost: auth.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/x-www-form-urlencoded\n\nsocial_id=982",
+  "corrected_code": "@login_required\n@require_POST\ndef reassign_social_identity(request):\n    social_account_id = request.POST.get('social_id')\n    confirmation_key = request.POST.get('confirmation_key')\n    social_account = get_object_or_404(\n        SocialAccount,\n        id=social_account_id,\n        user=request.user\n    )\n    if not verify_relink_token(request.user, confirmation_key):\n        raise PermissionDenied(\"Invalid or missing identity transfer verification token.\")\n    social_account.save(update_fields=['user'])\n    return JsonResponse({'status': 'identity linked', 'user_id': request.user.id})",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

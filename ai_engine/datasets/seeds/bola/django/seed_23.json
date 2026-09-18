@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "def get_consignment_tracking(request, consignment_id):\n    consignment = Consignment.objects.select_related(\n        'order__customer__payment_profile', 'destination_warehouse'\n    ).get(id=consignment_id)\n    return JsonResponse({\n        'status': consignment.status,\n        'customer_name': consignment.order.customer.full_name,\n        'shipping_address': consignment.order.shipping_address,\n        'billing_card_last4': consignment.order.customer.payment_profile.card_last4\n    })",
+  "diagnosis": "The function fetches the Consignment and traverses relations to order and payment_profile using select_related. The query fetches by consignment_id without verifying that consignment.order.customer == request.user, disclosing personal shipping addresses and masked card details.",
+  "exploit_request": "GET /api/logistics/consignments/99410/tracking/ HTTP/1.1\nHost: api.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "def get_consignment_tracking(request, consignment_id):\n    consignment = get_object_or_404(\n        Consignment.objects.select_related('order__customer__payment_profile', 'destination_warehouse'),\n        id=consignment_id,\n        order__customer=request.user\n    )\n    return JsonResponse({\n        'status': consignment.status,\n        'customer_name': consignment.order.customer.full_name,\n        'shipping_address': consignment.order.shipping_address,\n        'billing_card_last4': consignment.order.customer.payment_profile.card_last4\n    })",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

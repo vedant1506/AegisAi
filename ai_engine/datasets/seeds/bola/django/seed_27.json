@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "def get_merchant_settlement_stats(request, merchant_id):\n    stats = SettlementBatch.objects.filter(merchant_id=merchant_id, status='pending').aggregate(\n        pending_volume=Sum('gross_amount'),\n        net_reserve=Sum('retained_reserve')\n    )\n    return JsonResponse({'merchant_id': merchant_id, 'stats': stats})",
+  "diagnosis": "The handler aggregates pending financial settlement totals for any merchant_id passed in the URL path. It lacks authorization logic to verify that request.user is associated with the requested merchant account, exposing proprietary revenue volume.",
+  "exploit_request": "GET /api/settlements/stats/8834/ HTTP/1.1\nHost: payments.example.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "def get_merchant_settlement_stats(request, merchant_id):\n    if not request.user.merchants.filter(id=merchant_id).exists():\n        return HttpResponseForbidden()\n    stats = SettlementBatch.objects.filter(merchant_id=merchant_id, status='pending').aggregate(\n        pending_volume=Sum('gross_amount'),\n        net_reserve=Sum('retained_reserve')\n    )\n    return JsonResponse({'merchant_id': merchant_id, 'stats': stats})",
+  "severity": "LOW",
+  "confidence": 0.93
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from rest_framework.generics import DestroyAPIView\nfrom rest_framework.permissions import IsAuthenticated\nfrom actstream.models import Follow\n\nclass FollowSubscriptionDeleteView(DestroyAPIView):\n    permission_classes = [IsAuthenticated]\n    queryset = Follow.objects.all()\n\n    def perform_destroy(self, instance):\n        # Deletes Follow relationship instance directly without verifying ownership\n        instance.delete()",
+  "diagnosis": "FollowSubscriptionDeleteView permits any authenticated user to delete arbitrary actstream Follow instances by ID. Because the view uses an unscoped Follow.objects.all() queryset and performs no check to ensure the follow relation belongs to request.user, an attacker can unsubscribe other users from mission-critical audit and alert streams.",
+  "exploit_request": "DELETE /api/activity/follows/419/ HTTP/1.1\nHost: api.monitorstream.io\nAuthorization: Bearer standard_token\nAccept: application/json",
+  "corrected_code": "from rest_framework.generics import DestroyAPIView\nfrom rest_framework.permissions import IsAuthenticated\nfrom actstream.models import Follow\n\nclass FollowSubscriptionDeleteView(DestroyAPIView):\n    permission_classes = [IsAuthenticated]\n\n    def get_queryset(self):\n        # Only permit deletion of follow relationships initiated by the authenticated user\n        return Follow.objects.filter(user=self.request.user)\n\n    def perform_destroy(self, instance):\n        instance.delete()",
+  "severity": "LOW",
+  "confidence": 0.83
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Banking::WireTemplatesController < ApplicationController\n  before_action :authenticate_customer!\n\n  def create\n    # Permits foreign key user_id from client request\n    @template = WireTemplate.new(template_params)\n    @template.save!\n    render json: @template, status: :created\n  end\n\n  private\n\n  def template_params\n    params.require(:wire_template).permit(:recipient_iban, :swift_bic, :user_id, :template_name)\n  end\nend",
+  "diagnosis": "The controller permits user_id in strong parameters instead of associating the wire template with current_customer. An attacker can insert fraudulent pre-approved wire transfer destination templates into other bank customers' accounts.",
+  "exploit_request": "POST /api/banking/wire_templates HTTP/1.1\nHost: banking.secure-online.com\nAuthorization: Bearer customer_token_882\nContent-Type: application/json\n\n{\"wire_template\": {\"recipient_iban\": \"GB29NWBK60161331926819\", \"swift_bic\": \"NWBKGB2L\", \"user_id\": 772, \"template_name\": \"Payroll\"}}",
+  "corrected_code": "class Banking::WireTemplatesController < ApplicationController\n  before_action :authenticate_customer!\n\n  def create\n    @template = current_customer.wire_templates.build(template_params)\n    @template.save!\n    render json: @template, status: :created\n  end\n\n  private\n\n  def template_params\n    params.require(:wire_template).permit(:recipient_iban, :swift_bic, :template_name)\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.92
+}

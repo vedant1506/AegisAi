@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.post('/api/comments/:commentId/delete', async (req, res) => {\n  await db.Comment.destroy({ where: { id: req.params.commentId } });\n  res.send('Comment deleted');\n});",
+  "diagnosis": "The route deletes a comment based purely on the commentId provided in the URL, without verifying that the currently logged-in user is the author of the comment.",
+  "exploit_request": "POST /api/comments/1234/delete HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.post('/api/comments/:commentId/delete', async (req, res) => {\n  const comment = await db.Comment.findByPk(req.params.commentId);\n  if (!comment || comment.authorId !== req.user.id) return res.status(403).send('Forbidden');\n  await comment.destroy();\n  res.send('Comment deleted');\n});"
+}

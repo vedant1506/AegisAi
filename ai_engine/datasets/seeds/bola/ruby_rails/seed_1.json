@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Consultations::NotesController < ApplicationController\n  before_action :authenticate_patient!\n\n  def show\n    # BOLA: ConsultationNote fetched directly by primary key id\n    # without verifying it belongs to current_user.patient_profile\n    @note = ConsultationNote.find(params[:id])\n\n    render json: {\n      id: @note.id,\n      psychiatric_eval: @note.clinical_summary,\n      diagnosis_codes: @note.icd10_codes,\n      prescriptions: @note.prescribed_medications\n    }\n  end\nend",
+  "diagnosis": "The show action queries ConsultationNote by primary key directly from user input without verifying that the note belongs to the authenticated patient. Any authenticated patient can access confidential psychiatric evaluations, diagnostic codes, and prescription records belonging to other patients by altering the id parameter.",
+  "exploit_request": "GET /api/v1/consultations/notes/8041 HTTP/1.1\nHost: telehealth.healthcare-app.com\nAuthorization: Bearer patient_jwt_token_9918\nAccept: application/json",
+  "corrected_code": "class Consultations::NotesController < ApplicationController\n  before_action :authenticate_patient!\n\n  def show\n    @note = current_user.patient_profile.consultation_notes.find(params[:id])\n\n    render json: {\n      id: @note.id,\n      psychiatric_eval: @note.clinical_summary,\n      diagnosis_codes: @note.icd10_codes,\n      prescriptions: @note.prescribed_medications\n    }\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

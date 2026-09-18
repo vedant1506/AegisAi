@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\n@require_POST\ndef request_gdpr_data_export(request):\n    target_user_id = request.POST.get('user_id')\n    buffer = StringIO()\n    call_command('export_user_pii', user_id=target_user_id, stdout=buffer)\n    return JsonResponse({'status': 'export completed', 'details': buffer.getvalue()})",
+  "diagnosis": "The view accepts user_id from the client request and passes it directly to call_command('export_user_pii') without verifying that target_user_id == str(request.user.id). Any user can execute the command against any target user and receive their full PII dossier.",
+  "exploit_request": "POST /privacy/gdpr/export/ HTTP/1.1\nHost: privacy.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/x-www-form-urlencoded\n\nuser_id=1029",
+  "corrected_code": "@login_required\n@require_POST\ndef request_gdpr_data_export(request):\n    buffer = StringIO()\n    call_command('export_user_pii', user_id=request.user.id, stdout=buffer)\n    return JsonResponse({'status': 'export completed', 'details': buffer.getvalue()})",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

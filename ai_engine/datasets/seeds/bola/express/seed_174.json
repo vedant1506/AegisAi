@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const deliveryTrackingResolvers = {\n  Subscription: {\n    courierLocationUpdated: {\n      subscribe: withFilter(\n        () => pubsub.asyncIterator(['COURIER_GPS_EVENTS']),\n        (payload, args) => payload.trackingNumber === args.trackingNumber\n      ),\n      resolve: (payload) => payload.coordinates\n    }\n  }\n};",
+  "diagnosis": "The subscription matches courier updates only against trackingNumber without validating whether context.user is either the delivery recipient or the dispatch agent. An unprivileged user with a known tracking number can track driver coordinates and delivery routes.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: api.logistics.com\nUpgrade: websocket\nSec-WebSocket-Protocol: graphql-ws\n\n{\"type\": \"start\", \"id\": \"sub_gps\", \"payload\": {\"query\": \"subscription { courierLocationUpdated(trackingNumber: \\\"TRK-8921-990\\\") { lat lng speed } }\"}}",
+  "corrected_code": "const deliveryTrackingResolvers = {\n  Subscription: {\n    courierLocationUpdated: {\n      subscribe: withFilter(\n        () => pubsub.asyncIterator(['COURIER_GPS_EVENTS']),\n        async (payload, args, context) => {\n          if (!context.user || payload.trackingNumber !== args.trackingNumber) return false;\n          const shipment = await Shipment.findOne({ where: { trackingNumber: args.trackingNumber, recipientId: context.user.id } });\n          return !!shipment;\n        }\n      ),\n      resolve: (payload) => payload.coordinates\n    }\n  }\n};",
+  "severity": "LOW",
+  "confidence": 0.89
+}

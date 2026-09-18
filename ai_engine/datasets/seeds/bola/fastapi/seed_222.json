@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "# Sub-application mounted at parent: app.mount(\"/tenants/{tenant_id}/docs\", docs_subapp)\ndocs_subapp = FastAPI()\n\n@docs_subapp.get(\"/items/{doc_id}\")\nasync def get_tenant_document(\n    doc_id: str,\n    db: Session = Depends(get_db)\n):\n    doc = db.query(Document).filter(Document.id == doc_id).first()\n    if not doc:\n        raise HTTPException(status_code=404, detail=\"Document not found\")\n    return doc",
+  "diagnosis": "The sub-application mounted at /tenants/{tenant_id}/docs does not inherit parent authentication or tenant validation middleware. The sub-app route handler fetches documents purely by doc_id without verifying the caller's session or checking if the document belongs to tenant_id.",
+  "exploit_request": "GET /tenants/tnt_acme/docs/items/doc_confidential_contract_882 HTTP/1.1\nHost: docs.saasplatform.com",
+  "corrected_code": "# Sub-application mounted at parent: app.mount(\"/tenants/{tenant_id}/docs\", docs_subapp)\ndocs_subapp = FastAPI()\n\n@docs_subapp.get(\"/items/{doc_id}\")\nasync def get_tenant_document(\n    doc_id: str,\n    request: Request,\n    db: Session = Depends(get_db),\n    current_user: User = Depends(get_current_user)\n):\n    tenant_id = request.path_params.get(\"tenant_id\")\n    doc = db.query(Document).filter(\n        Document.id == doc_id,\n        Document.tenant_id == current_user.tenant_id\n    ).first()\n    if not doc or (tenant_id and current_user.tenant_id != tenant_id):\n        raise HTTPException(status_code=404, detail=\"Document not found or access denied\")\n    return doc",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

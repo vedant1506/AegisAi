@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package contracts\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/models\"\n)\n\ntype ContractService struct {\n\tDB *gorm.DB\n}\n\nfunc (s *ContractService) GetDocumentTemplate(ctx context.Context, docID string) (*models.ContractTemplate, error) {\n\tvar tmpl models.ContractTemplate\n\n\t// BOLA: Fetches legal contract draft using un-scoped document ID.\n\terr := s.DB.WithContext(ctx).Where(\"id = ?\", docID).First(&tmpl).Error\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn &tmpl, nil\n}\n",
+  "diagnosis": "The GetDocumentTemplate function uses GORM Where('id = ?', docID).First(&tmpl) without enforcing organization_id constraints. Any authenticated organization user can access proprietary legal contracts, mutual non-disclosure agreements, and clauses belonging to other organizations.",
+  "exploit_request": "GET /api/contracts/templates/doc_3391 HTTP/1.1\nHost: esign.legal-suite.com\nAuthorization: Bearer org_user_token_99\nAccept: application/json",
+  "corrected_code": "package contracts\n\nimport (\n\t\"context\"\n\t\"gorm.io/gorm\"\n\t\"myapp/auth\"\n\t\"myapp/models\"\n)\n\ntype ContractService struct {\n\tDB *gorm.DB\n}\n\nfunc (s *ContractService) GetDocumentTemplate(ctx context.Context, docID string) (*models.ContractTemplate, error) {\n\tvar tmpl models.ContractTemplate\n\torgID := auth.OrgIDFromContext(ctx)\n\n\terr := s.DB.WithContext(ctx).\n\t\tWhere(\"id = ? AND organization_id = ?\", docID, orgID).\n\t\tFirst(&tmpl).Error\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn &tmpl, nil\n}\n",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "# Partner webhook sub-app mounted at: app.mount(\"/partners/integrations\", partner_subapp)\npartner_subapp = FastAPI()\n\n@partner_subapp.get(\"/deliveries/{delivery_id}\")\nasync def inspect_webhook_delivery(\n    delivery_id: str,\n    db: Session = Depends(get_db)\n):\n    delivery = db.query(WebhookDelivery).filter(WebhookDelivery.id == delivery_id).first()\n    if not delivery:\n        raise HTTPException(status_code=404, detail=\"Delivery record not found\")\n    return delivery",
+  "diagnosis": "The partner integration sub-application allows inspecting past webhook delivery attempts and raw payloads by delivery_id. The handler performs no partner authentication or ownership validation, allowing external actors to view webhook payloads and signing headers intended for other partner organizations.",
+  "exploit_request": "GET /partners/integrations/deliveries/del_991823 HTTP/1.1\nHost: api.connecthub.com\nAuthorization: Bearer <partner_api_key>",
+  "corrected_code": "# Partner webhook sub-app mounted at: app.mount(\"/partners/integrations\", partner_subapp)\npartner_subapp = FastAPI()\n\n@partner_subapp.get(\"/deliveries/{delivery_id}\")\nasync def inspect_webhook_delivery(\n    delivery_id: str,\n    db: Session = Depends(get_db),\n    current_partner: Partner = Depends(get_current_partner)\n):\n    delivery = db.query(WebhookDelivery).filter(\n        WebhookDelivery.id == delivery_id,\n        WebhookDelivery.partner_id == current_partner.id\n    ).first()\n    if not delivery:\n        raise HTTPException(status_code=404, detail=\"Delivery record not found or access denied\")\n    return delivery",
+  "severity": "MEDIUM",
+  "confidence": 0.89
+}

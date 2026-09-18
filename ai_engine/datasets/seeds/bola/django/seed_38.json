@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "def trigger_gdpr_export_job(request, export_id):\n    export_job = DataExportRequest.objects.get(id=export_id)\n    generate_gdpr_archive_task.apply_async(args=[export_job.id])\n    return JsonResponse({'status': 'processing', 'job_id': export_job.id})",
+  "diagnosis": "The view retrieves DataExportRequest by export_id from the URL and dispatches a Celery task to bundle personal data. Because the view fails to check that export_job.user == request.user, any user can trigger processing and access output paths of other users' GDPR archives.",
+  "exploit_request": "POST /api/privacy/gdpr/exports/3810/start/ HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "def trigger_gdpr_export_job(request, export_id):\n    export_job = get_object_or_404(DataExportRequest, id=export_id, user=request.user)\n    generate_gdpr_archive_task.apply_async(args=[export_job.id])\n    return JsonResponse({'status': 'processing', 'job_id': export_job.id})",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

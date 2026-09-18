@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class CloudCredentialRotateAPIView(APIView):\n    permission_classes = [permissions.IsAuthenticated]\n\n    def put(self, request, cred_id):\n        cred = CloudCredential.objects.get(id=cred_id)\n        cred.access_key = request.data['access_key']\n        cred.secret_key = request.data['secret_key']\n        cred.save(update_fields=['access_key', 'secret_key'])\n        return Response({'status': 'rotated', 'key_id': cred.id})",
+  "diagnosis": "The view directly loads CloudCredential using cred_id from the URL path. It performs no ownership check against request.user.tenant, allowing an attacker to overwrite another tenant's cloud provider credentials and hijack external cloud resources.",
+  "exploit_request": "PUT /api/credentials/aws/710/ HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"access_key\": \"AKIAEXPLOITKEY\", \"secret_key\": \"evil_secret\"}",
+  "corrected_code": "class CloudCredentialRotateAPIView(APIView):\n    permission_classes = [permissions.IsAuthenticated]\n\n    def put(self, request, cred_id):\n        cred = get_object_or_404(CloudCredential, id=cred_id, tenant=request.user.tenant)\n        cred.access_key = request.data['access_key']\n        cred.secret_key = request.data['secret_key']\n        cred.save(update_fields=['access_key', 'secret_key'])\n        return Response({'status': 'rotated', 'key_id': cred.id})",
+  "severity": "HIGH",
+  "confidence": 0.97
+}

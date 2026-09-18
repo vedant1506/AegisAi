@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class PortfolioChannel < ApplicationCable::Channel\n  def subscribed\n    # BOLA: Streams live market orders and trade fills directly from client parameter\n    # without checking if current_user owns the requested portfolio\n    stream_from \"portfolio_#{params[:portfolio_id]}\"\n  end\n\n  def unsubscribed\n    stop_all_streams\n  end\nend",
+  "diagnosis": "The PortfolioChannel subscribed action binds real-time trade execution streams solely based on params[:portfolio_id]. An authenticated investor can connect to competing accounts' private portfolio streams to intercept high-value order fills and sensitive balance updates.",
+  "exploit_request": "{\"command\":\"subscribe\",\"identifier\":\"{\\\"channel\\\":\\\"PortfolioChannel\\\",\\\"portfolio_id\\\":7741}\"}",
+  "corrected_code": "class PortfolioChannel < ApplicationCable::Channel\n  def subscribed\n    portfolio = current_user.portfolios.find_by(id: params[:portfolio_id])\n    reject unless portfolio\n\n    stream_from \"portfolio_#{portfolio.id}\"\n  end\n\n  def unsubscribed\n    stop_all_streams\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

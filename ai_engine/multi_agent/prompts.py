@@ -57,6 +57,39 @@ VULNERABILITY_OUTPUT_SCHEMA = """\
   "reasoning": "Step-by-step chain of thought explaining your analysis"
 }"""
 
+BOLA_VULNERABILITY_OUTPUT_SCHEMA = """\
+{
+  "vulnerabilities": [
+    {
+      "cwe_id": "CWE-639",
+      "owasp_category": "API1:2023 - Broken Object Level Authorization",
+      "title": "Broken Object Level Authorization (BOLA) in <route>",
+      "description": "Technical diagnosis of missing object-level authorization",
+      "severity": "CRITICAL|HIGH|MEDIUM|LOW",
+      "confidence": 0.95,
+      "exploit_spec": {
+        "target_url": "http://localhost:3000/api/endpoint",
+        "method": "GET|POST|PUT|PATCH|DELETE",
+        "headers": {
+          "Authorization": "Bearer <attacker_token>",
+          "Content-Type": "application/json"
+        },
+        "params": {},
+        "body": {},
+        "expected_status": 200,
+        "leak_indicator": "Expected victim data indicator or substring in response",
+        "attack_narrative": "Attacker uses valid credentials but requests victim resource identifier."
+      },
+      "remediation": "Validate that the requested resource belongs to the authenticated user session.",
+      "references": [
+        "https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/",
+        "https://cwe.mitre.org/data/definitions/639.html"
+      ]
+    }
+  ],
+  "reasoning": "Step-by-step chain of thought explaining parameter extraction and ownership verification gaps."
+}"""
+
 
 # ── Recon Prompt ──────────────────────────────────────────────
 
@@ -170,6 +203,102 @@ Think step by step. Consider:
 ## OUTPUT FORMAT
 ```json
 {VULNERABILITY_OUTPUT_SCHEMA}
+```
+"""
+
+
+# ── BOLA Reason Prompt ────────────────────────────────────────
+
+def build_bola_reason_prompt(
+    targets: list[dict[str, Any]],
+    scan_context: dict[str, Any] | None = None,
+) -> str:
+    """
+    Specialised prompt for the Reason Agent to detect Broken Object Level
+    Authorization (BOLA / IDOR, CWE-639 / OWASP API1:2023) by correlating
+    static AST source code with dynamic crawler endpoint profiles.
+
+    Args:
+        targets:       Correlated target dicts containing 'ast_node' and 'matched_endpoints'.
+        scan_context:  Optional metadata (scan_id, base_url, target_framework).
+
+    Returns:
+        Formatted prompt string strictly demanding JSON output.
+    """
+    formatted_targets = []
+    for target in targets[:5]:  # Focus on top 5 targets to fit context window
+        ast_info = target.get("ast_node", {})
+        endpoints_info = target.get("matched_endpoints", [])
+        
+        target_entry = {
+            "route_path": ast_info.get("route_path"),
+            "file_path": ast_info.get("file_path"),
+            "line_number": ast_info.get("line_number"),
+            "language": ast_info.get("language"),
+            "function_name": ast_info.get("function_name"),
+            "source_code_handler": ast_info.get("source_snippet"),
+            "dynamic_endpoints": [
+                {
+                    "url": ep.get("url"),
+                    "method": ep.get("method"),
+                    "headers": ep.get("headers"),
+                    "auth_tokens": ep.get("tokens"),
+                    "body_schema": ep.get("body_schema"),
+                }
+                for ep in endpoints_info
+            ],
+        }
+        formatted_targets.append(target_entry)
+
+    targets_json = json.dumps(formatted_targets, indent=2)
+    context_str = json.dumps(scan_context or {}, indent=2)
+
+    return f"""{SYSTEM_PERSONA}
+
+## TASK: Broken Object Level Authorization (BOLA / IDOR) Analysis
+
+You are evaluating an API target for **CWE-639: Authorization Bypass Through User-Controlled Key** 
+and **OWASP API Security Top 10 API1:2023 (BOLA)**.
+
+### Target Scan Context
+```json
+{context_str}
+```
+
+### Correlated AST Routes & Endpoint Definitions
+```json
+{targets_json}
+```
+
+## YOUR AUDIT OBJECTIVE
+For each target route, perform an in-depth code & API authorization audit:
+
+1. **Parameter & Identifier Tracing**:
+   - Identify any user-controlled object identifier (e.g., path parameters like `/:id`, query parameters, headers like `x-target-cart`, or JSON request body attributes like `order_id` or `account_id`).
+   
+2. **Authorization & Tenant Boundary Verification**:
+   - Trace how the backend handler fetches the requested object from the database or data store.
+   - Determine if the backend checks whether the authenticated caller (`req.user.id`, session identity, or JWT subject) is the legitimate owner of that specific object.
+   - If the code blindly fetches or updates the object based on the user-supplied identifier without verifying ownership, classify it as **BOLA (CWE-639 / API1:2023)**.
+
+3. **Multi-Tenant Exploit Probe Synthesis (`exploit_spec`)**:
+   - Construct a concrete, structured HTTP exploit probe demonstrating how an authenticated attacker (User A) can read or modify a victim's (User B) resource.
+   - Include:
+     - `target_url`: Full endpoint URL to probe.
+     - `method`: Appropriate HTTP method (GET, POST, PUT, DELETE, etc.).
+     - `headers`: Include realistic authorization headers (e.g. `Authorization: Bearer <attacker_token>`) and any custom ID headers.
+     - `params` and `body`: Structured payload targeting the victim's object ID.
+     - `expected_status`: Expected HTTP status confirming unauthorized access (e.g., 200 instead of 403).
+     - `leak_indicator`: Specific response indicator or substring proving cross-tenant access.
+     - `attack_narrative`: Clear step-by-step description of the attack execution.
+
+4. **Remediation**:
+   - Provide precise code-level instructions to enforce strict object ownership verification before database operations.
+
+## OUTPUT FORMAT
+You must respond ONLY with valid JSON matching the following schema. No conversational prose or introductory text:
+```json
+{BOLA_VULNERABILITY_OUTPUT_SCHEMA}
 ```
 """
 

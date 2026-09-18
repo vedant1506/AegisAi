@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const loadProject = async (req, res, next) => {\n  const project = await ProjectModel.findById(req.params.projectId);\n  if (!project) return res.status(404).json({ error: 'Project not found' });\n  res.locals.project = project;\n  next();\n};\n\napp.patch('/api/projects/:projectId', authenticateUser, loadProject, async (req, res) => {\n  Object.assign(res.locals.project, req.body);\n  await res.locals.project.save();\n  res.json(res.locals.project);\n});",
+  "diagnosis": "The loadProject middleware attaches the requested project to res.locals without checking if req.user.id has ownership or membership in the project. The downstream route handler applies updates and saves the object, allowing any authenticated user to modify projects across organizations.",
+  "exploit_request": "PATCH /api/projects/6601ad89bf10e8201a094e21 HTTP/1.1\nHost: api.saascollab.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"title\": \"Compromised Roadmap\", \"isPublic\": true}",
+  "corrected_code": "const loadProject = async (req, res, next) => {\n  const project = await ProjectModel.findOne({ _id: req.params.projectId, ownerId: req.user.id });\n  if (!project) return res.status(403).json({ error: 'Access denied to target project' });\n  res.locals.project = project;\n  next();\n};\n\napp.patch('/api/projects/:projectId', authenticateUser, loadProject, async (req, res) => {\n  Object.assign(res.locals.project, req.body);\n  await res.locals.project.save();\n  res.json(res.locals.project);\n});",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

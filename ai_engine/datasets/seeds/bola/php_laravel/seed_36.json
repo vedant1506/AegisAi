@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "namespace App\\Filament\\Resources;\n\nuse App\\Models\\Customer;\nuse Filament\\Resources\\Resource;\nuse Illuminate\\Database\\Eloquent\\Builder;\n\nclass CustomerResource extends Resource\n{\n    protected static ?string $model = Customer::class;\n\n    // Missing multi-tenant query scoping: exposes all customers across all tenants in panel\n    public static function getEloquentQuery(): Builder\n    {\n        return parent::getEloquentQuery();\n    }\n}",
+  "diagnosis": "The Filament CustomerResource overrides getEloquentQuery() without scoping queries to the current Filament tenant context. Tenant administrators accessing the Filament back-office dashboard can browse, search, edit, and export customer directories belonging to other distinct enterprise tenants.",
+  "exploit_request": "GET /admin/customers?tableSearch=Enterprise HTTP/1.1\nHost: panel.multitenant-crm.com\nCookie: laravel_session=eyJpdiI6IlwvVm...b3JnX2FkbWluX3Rva2Vu\nAccept: text/html,application/xhtml+xml",
+  "corrected_code": "namespace App\\Filament\\Resources;\n\nuse App\\Models\\Customer;\nuse Filament\\Resources\\Resource;\nuse Filament\\Facades\\Filament;\nuse Illuminate\\Database\\Eloquent\\Builder;\n\nclass CustomerResource extends Resource\n{\n    protected static ?string $model = Customer::class;\n    protected static ?string $tenantOwnershipRelationshipName = 'tenant';\n\n    public static function getEloquentQuery(): Builder\n    {\n        return parent::getEloquentQuery()\n            ->where('tenant_id', Filament::getTenant()->id);\n    }\n}",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

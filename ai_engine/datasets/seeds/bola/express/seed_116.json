@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.get('/api/profile/export', (req, res) => {\n  const fileId = req.query.fileId;\n  const path = getProfilePath(fileId);\n  res.download(path);\n});",
+  "diagnosis": "A file download endpoint for profile generates a file path based on a 'fileId' query parameter, failing to check if the user is authorized to download that specific export.",
+  "exploit_request": "GET /api/profile/export?fileId=EXPORT-552 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.get('/api/profile/export', async (req, res) => {\n  const fileId = req.query.fileId;\n  const fileRecord = await Profile.findOne({ fileId, userId: req.user.id });\n  if (!fileRecord) return res.status(404).send('Not Found');\n  res.download(fileRecord.path);\n});"
+}

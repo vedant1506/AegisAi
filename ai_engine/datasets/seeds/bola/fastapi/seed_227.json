@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "JOB_REGISTRY: dict[str, dict] = {}\n\n@router.get(\"/reports/queue-jobs/{job_id}\")\nasync def poll_queue_job(\n    job_id: str,\n    current_user: User = Depends(get_current_user)\n):\n    job = JOB_REGISTRY.get(job_id)\n    if not job:\n        raise HTTPException(status_code=404, detail=\"Job not found\")\n    return {\n        \"job_id\": job_id,\n        \"status\": job[\"status\"],\n        \"result\": job.get(\"result\")\n    }",
+  "diagnosis": "The tax report polling endpoint retrieves asynchronous generation results from an in-memory JOB_REGISTRY dictionary by job_id. It fails to check if job[\"user_id\"] == current_user.id, allowing any authenticated user to poll job IDs and extract generated financial summaries and W-2 filings belonging to other users.",
+  "exploit_request": "GET /reports/queue-jobs/job_tax_2025_98124 HTTP/1.1\nHost: app.taxcloud.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "JOB_REGISTRY: dict[str, dict] = {}\n\n@router.get(\"/reports/queue-jobs/{job_id}\")\nasync def poll_queue_job(\n    job_id: str,\n    current_user: User = Depends(get_current_user)\n):\n    job = JOB_REGISTRY.get(job_id)\n    if not job:\n        raise HTTPException(status_code=404, detail=\"Job not found\")\n    if job.get(\"user_id\") != current_user.id and not current_user.is_admin:\n        raise HTTPException(status_code=403, detail=\"Forbidden: unauthorized access to report generation job\")\n    return {\n        \"job_id\": job_id,\n        \"status\": job[\"status\"],\n        \"result\": job.get(\"result\")\n    }",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

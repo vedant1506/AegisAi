@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class PatentsController < ApplicationController\n  def download_blueprint\n    @patent = Patent.find(params[:id])\n    # Missing company tenancy check before issuing Active Storage blob redirect\n    redirect_to rails_blob_path(@patent.blueprint_pdf, disposition: 'attachment')\n  end\nend",
+  "diagnosis": "The download_blueprint action retrieves a Patent by ID and immediately redirects to its Active Storage blueprint_pdf attachment without checking if the requester belongs to the patent-holding organization. Competitors can download proprietary CAD blueprints and patent disclosures prior to public release.",
+  "exploit_request": "GET /api/patents/pat_4401/blueprint HTTP/1.1\nHost: ip.techcorp-rnd.com\nAuthorization: Bearer rival_company_token_88\nAccept: application/pdf",
+  "corrected_code": "class PatentsController < ApplicationController\n  def download_blueprint\n    @patent = Patent.find(params[:id])\n    authorize @patent, :download_blueprint?\n\n    redirect_to rails_blob_path(@patent.blueprint_pdf, disposition: 'attachment')\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

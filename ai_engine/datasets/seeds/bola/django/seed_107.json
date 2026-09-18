@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from rest_framework.throttling import SimpleRateThrottle\n\nclass MerchantPayoutRateThrottle(SimpleRateThrottle):\n    scope = 'merchant_payout'\n    rate = '3/hour'\n\n    def get_cache_key(self, request, view):\n        merchant_id = view.kwargs.get('merchant_id')\n        if not merchant_id:\n            return None\n        return f\"throttle_{self.scope}_{merchant_id}\"",
+  "diagnosis": "The throttle computes its rate limit key using the merchant_id route parameter before object-level permissions verify whether the caller owns that merchant. A malicious actor can issue repeated payout attempts referencing another merchant's ID, exhausting the victim merchant's 3/hour withdrawal allowance.",
+  "exploit_request": "POST /api/merchants/881/payouts/execute/ HTTP/1.1\nHost: payments.hub.com\nAuthorization: Bearer <unauthorized_user_jwt>\nContent-Type: application/json\n\n{\"amount\": 100.00}",
+  "corrected_code": "from rest_framework.throttling import SimpleRateThrottle\nfrom rest_framework.exceptions import PermissionDenied\n\nclass MerchantPayoutRateThrottle(SimpleRateThrottle):\n    scope = 'merchant_payout'\n    rate = '3/hour'\n\n    def get_cache_key(self, request, view):\n        if not request.user or not request.user.is_authenticated:\n            return None\n        merchant_id = view.kwargs.get('merchant_id')\n        if not request.user.merchants.filter(id=merchant_id).exists():\n            raise PermissionDenied(\"You do not manage this merchant.\")\n        return f\"throttle_{self.scope}_{merchant_id}_{request.user.id}\"",
+  "severity": "LOW",
+  "confidence": 0.85
+}

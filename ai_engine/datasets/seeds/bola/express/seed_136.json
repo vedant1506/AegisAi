@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.post('/api/profile/upsert', async (req, res) => {\n  const result = await Profile.findOneAndUpdate(\n    { id: req.body.id },\n    req.body,\n    { upsert: true }\n  );\n  res.json(result);\n});",
+  "diagnosis": "An upsert operation on profile uses the ID from the request body as the query selector without scoping it to the current user, permitting arbitrary record modification.",
+  "exploit_request": "POST /api/profile/upsert HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"id\": 777, \"data\": \"overwritten\"}",
+  "corrected_code": "app.post('/api/profile/upsert', async (req, res) => {\n  const result = await Profile.findOneAndUpdate(\n    { id: req.body.id, ownerId: req.user.id },\n    req.body,\n    { upsert: true }\n  );\n  res.json(result);\n});"
+}

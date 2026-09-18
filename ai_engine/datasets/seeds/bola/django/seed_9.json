@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class MedicalRecordViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):\n    queryset = MedicalRecord.objects.all()\n    serializer_class = MedicalRecordSerializer\n    lookup_field = 'record_uuid'\n    permission_classes = [permissions.IsAuthenticated]",
+  "diagnosis": "The GenericViewSet exposes medical records by record_uuid using an unscoped global queryset. It lacks an object-level permission class or a customized get_queryset() to ensure patients only view their own medical charts or doctors only access their assigned patients.",
+  "exploit_request": "GET /api/v1/records/4a5b7c8d-1234-5678-9abc-def012345678/ HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <patient_token>",
+  "corrected_code": "class MedicalRecordViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):\n    serializer_class = MedicalRecordSerializer\n    lookup_field = 'record_uuid'\n    permission_classes = [permissions.IsAuthenticated]\n\n    def get_queryset(self):\n        if self.request.user.is_doctor:\n            return MedicalRecord.objects.filter(doctor=self.request.user)\n        return MedicalRecord.objects.filter(patient=self.request.user)",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package graph\n\nimport (\n\t\"context\"\n\t\"myapp/graph/model\"\n)\n\nfunc (r *QueryResolver) DocumentExportJob(ctx context.Context, jobID string) (*model.ExportJob, error) {\n\t// BOLA: Returns background export job progress status and format solely by jobID.\n\tjob, err := r.JobStore.GetJob(ctx, jobID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn job, nil\n}\n",
+  "diagnosis": "The DocumentExportJob GraphQL resolver exposes the progress and completion status of document export tasks by jobID without verifying the user who triggered the export. Any user can poll the status and metadata of export operations initiated by other accounts.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: exporter.docs-online.com\nAuthorization: Bearer standard_user_token\nContent-Type: application/json\n\n{\"query\": \"query { documentExportJob(jobId: \\\"job_export_881\\\") { id status fileFormat progressPercent } }\"}",
+  "corrected_code": "package graph\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"myapp/auth\"\n\t\"myapp/graph/model\"\n)\n\nfunc (r *QueryResolver) DocumentExportJob(ctx context.Context, jobID string) (*model.ExportJob, error) {\n\tcallerID := auth.GetUserID(ctx)\n\tjob, err := r.JobStore.GetJob(ctx, jobID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tif job.CreatedByUserID != callerID {\n\t\treturn nil, errors.New(\"export job does not belong to authenticated user\")\n\t}\n\n\treturn job, nil\n}\n",
+  "severity": "LOW",
+  "confidence": 0.81
+}

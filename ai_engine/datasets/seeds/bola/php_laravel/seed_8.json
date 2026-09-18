@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\CrmNote;\n\nclass CrmNotePolicy\n{\n    public function view(User $user, CrmNote $note): bool\n    {\n        // Flag is_public was intended for internal company visibility, but policy fails to verify organization\n        return $note->is_public || $user->id === $note->author_id;\n    }\n}",
+  "diagnosis": "The CrmNotePolicy view method treats the 'is_public' flag as globally readable without restricting reads to users within the same enterprise account. Since 'is_public' notes were meant to be visible to all agents within the note author's tenant, agents from rival companies can read all notes flagged as public.",
+  "exploit_request": "GET /api/crm/deals/551/notes/1820 HTTP/1.1\nHost: sales.cloudhub-crm.com\nAuthorization: Bearer 29|kjhgfdsapoiuytrewq0987654321\nAccept: application/json",
+  "corrected_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\CrmNote;\n\nclass CrmNotePolicy\n{\n    public function view(User $user, CrmNote $note): bool\n    {\n        if ($user->organization_id !== $note->organization_id) {\n            return false;\n        }\n\n        return $note->is_public || $user->id === $note->author_id;\n    }\n}",
+  "severity": "MEDIUM",
+  "confidence": 0.86
+}

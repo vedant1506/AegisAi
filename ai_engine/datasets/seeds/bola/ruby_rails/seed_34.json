@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class DisburseCommissionWorker\n  include Sidekiq::Worker\n\n  def perform(sales_rep_id, deal_id)\n    deal = Deal.find(deal_id)\n    rep = SalesRepresentative.find(sales_rep_id)\n\n    # Disburses commission without verifying deal.sales_rep_id\n    rep.payout_account.transfer!(deal.commission_amount)\n  end\nend\n\nclass Sales::CommissionsController < ApplicationController\n  def claim\n    DisburseCommissionWorker.perform_async(current_rep.id, params[:deal_id])\n    render json: { status: 'Commission payout initiated' }\n  end\nend",
+  "diagnosis": "DisburseCommissionWorker credits sales commission to sales_rep_id without verifying that the representative is assigned to the closed deal. Rogue representatives can submit claims against major enterprise accounts closed by other team members.",
+  "exploit_request": "POST /api/sales/commissions/claim HTTP/1.1\nHost: sales.enterprisecrm.io\nAuthorization: Bearer sales_rep_token_88\nContent-Type: application/json\n\n{\"deal_id\": 9042}",
+  "corrected_code": "class DisburseCommissionWorker\n  include Sidekiq::Worker\n\n  def perform(sales_rep_id, deal_id)\n    deal = Deal.find(deal_id)\n    raise 'Deal does not belong to rep' unless deal.sales_rep_id == sales_rep_id\n\n    rep = SalesRepresentative.find(sales_rep_id)\n    rep.payout_account.transfer!(deal.commission_amount)\n  end\nend\n\nclass Sales::CommissionsController < ApplicationController\n  def claim\n    deal = current_rep.deals.find(params[:deal_id])\n    DisburseCommissionWorker.perform_async(current_rep.id, deal.id)\n    render json: { status: 'Commission payout initiated' }\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.91
+}

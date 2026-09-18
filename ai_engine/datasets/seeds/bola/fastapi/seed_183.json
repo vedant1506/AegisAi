@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get(\"/ecommerce/carts/{cart_pk}\")\nasync def get_shopping_cart(\n    cart_pk: str,\n    current_user: User = Depends(get_current_user)\n):\n    try:\n        cart = CartOrderDraft.get(cart_pk)\n    except NotFoundError:\n        raise HTTPException(status_code=404, detail=\"Cart draft not found\")\n\n    return {\n        \"cart_id\": cart.pk,\n        \"items\": cart.items,\n        \"saved_shipping_address\": cart.shipping_address,\n        \"payment_token\": cart.tokenized_card_ref\n    }",
+  "diagnosis": "The shopping cart retrieval endpoint uses Redis OM's CartOrderDraft.get(cart_pk) to fetch cart records. It fails to check whether cart.customer_id matches current_user.id, allowing an attacker who enumerates or obtains cart_pk keys to view saved physical addresses, items, and payment token references of other customers.",
+  "exploit_request": "GET /ecommerce/carts/01HJ8Z910MKA789BCDW124890 HTTP/1.1\nHost: shop.storefront.com\nAuthorization: Bearer <customer_jwt>",
+  "corrected_code": "@router.get(\"/ecommerce/carts/{cart_pk}\")\nasync def get_shopping_cart(\n    cart_pk: str,\n    current_user: User = Depends(get_current_user)\n):\n    try:\n        cart = CartOrderDraft.get(cart_pk)\n    except NotFoundError:\n        raise HTTPException(status_code=404, detail=\"Cart draft not found\")\n\n    if cart.customer_id != str(current_user.id):\n        raise HTTPException(status_code=403, detail=\"Forbidden: access to cart denied\")\n\n    return {\n        \"cart_id\": cart.pk,\n        \"items\": cart.items,\n        \"saved_shipping_address\": cart.shipping_address,\n        \"payment_token\": cart.tokenized_card_ref\n    }",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\n\n// routes/channels.php\nBroadcast::channel('telehealth.room.{roomId}', function (User $user, string $roomId) {\n    // Only checks role existence; does not verify room participant assignment\n    return $user->hasRole('doctor') || $user->hasRole('patient');\n});",
+  "diagnosis": "The WebRTC signaling presence channel verifies only that the user possesses a role of 'doctor' or 'patient' without confirming that the user is the specific patient or attending clinician assigned to the consultation room. Any registered patient or doctor can eavesdrop on private video consultations and audio streams across the entire platform.",
+  "exploit_request": "POST /broadcasting/auth HTTP/1.1\nHost: video.medconnect-live.org\nAuthorization: Bearer 85|patientjwt102938\nContent-Type: application/json\n\n{\"socket_id\": \"29103.8821\", \"channel_name\": \"presence-telehealth.room.room-uuid-7712\"}",
+  "corrected_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\nuse App\\Models\\ConsultationRoom;\n\n// routes/channels.php\nBroadcast::channel('telehealth.room.{roomId}', function (User $user, string $roomId) {\n    $room = ConsultationRoom::where('room_uuid', $roomId)->first();\n    if (!$room) {\n        return false;\n    }\n\n    return $room->doctor_id === $user->id || $room->patient_id === $user->id;\n});",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

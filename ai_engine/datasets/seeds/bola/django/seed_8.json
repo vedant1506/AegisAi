@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ClientInvoiceViewSet(viewsets.ReadOnlyModelViewSet):\n    serializer_class = InvoiceSerializer\n    permission_classes = [permissions.IsAuthenticated]\n\n    def retrieve(self, request, client_id=None, pk=None):\n        invoice = get_object_or_404(Invoice, pk=pk)\n        serializer = self.get_serializer(invoice)\n        return Response(serializer.data)",
+  "diagnosis": "In a nested route structure (/api/clients/{client_id}/invoices/{pk}/), the view retrieves the invoice solely using pk=pk without verifying that the invoice belongs to the specified client_id or that the requesting user's firm manages that client.",
+  "exploit_request": "GET /api/clients/12/invoices/9954/ HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "class ClientInvoiceViewSet(viewsets.ReadOnlyModelViewSet):\n    serializer_class = InvoiceSerializer\n    permission_classes = [permissions.IsAuthenticated]\n\n    def retrieve(self, request, client_id=None, pk=None):\n        invoice = get_object_or_404(Invoice, pk=pk, client_id=client_id, client__firm=request.user.firm)\n        serializer = self.get_serializer(invoice)\n        return Response(serializer.data)",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.post('/api/profile/create', async (req, res) => {\n  const item = await Profile.create(req.body);\n  res.json(item);\n});",
+  "diagnosis": "The profile creation endpoint uses mass assignment (`req.body`), allowing an attacker to supply a different 'userId' or 'accountId' to create resources on behalf of others.",
+  "exploit_request": "POST /api/profile/create HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"name\": \"Test\", \"userId\": \"victim_id\"}",
+  "corrected_code": "app.post('/api/profile/create', async (req, res) => {\n  const data = { ...req.body, userId: req.user.id };\n  const item = await Profile.create(data);\n  res.json(item);\n});"
+}

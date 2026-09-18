@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ExportArchiveDownloadView(LoginRequiredMixin, FormView):\n    form_class = DownloadArchiveForm\n    template_name = 'backups/download.html'\n\n    def form_valid(self, form):\n        archive_id = form.cleaned_data['archive_id']\n        archive = BackupArchive.objects.get(id=archive_id)\n        return redirect(archive.generate_presigned_download_url())",
+  "diagnosis": "The form submission extracts archive_id from the POST parameters and retrieves the BackupArchive without verifying ownership. An authenticated user can tamper with the form field to obtain download URLs for other accounts' full system backups.",
+  "exploit_request": "POST /backups/download/ HTTP/1.1\nHost: cloud.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/x-www-form-urlencoded\n\narchive_id=891",
+  "corrected_code": "class ExportArchiveDownloadView(LoginRequiredMixin, FormView):\n    form_class = DownloadArchiveForm\n    template_name = 'backups/download.html'\n\n    def form_valid(self, form):\n        archive_id = form.cleaned_data['archive_id']\n        archive = get_object_or_404(BackupArchive, id=archive_id, account=self.request.user.account)\n        return redirect(archive.generate_presigned_download_url())",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

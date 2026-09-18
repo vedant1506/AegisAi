@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.delete('/api/profile/remove', async (req, res) => {\n  const targetId = req.headers['x-target-id'];\n  await Profile.deleteOne({ _id: targetId });\n  res.send('Deleted');\n});",
+  "diagnosis": "The endpoint performs a delete action on profile by blindly trusting a custom HTTP header 'x-target-id', which is completely controlled by the client.",
+  "exploit_request": "DELETE /api/profile/remove HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nX-Target-Id: 5f8d0a\n",
+  "corrected_code": "app.delete('/api/profile/remove', async (req, res) => {\n  const targetId = req.headers['x-target-id'];\n  await Profile.deleteOne({ _id: targetId, user: req.auth.id });\n  res.send('Deleted');\n});"
+}

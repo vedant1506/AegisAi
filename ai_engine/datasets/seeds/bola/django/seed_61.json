@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Query(graphene.ObjectType):\n    performance_review = graphene.Field(PerformanceReviewType, review_id=graphene.Int(required=True))\n\n    def resolve_performance_review(self, info, review_id):\n        if not info.context.user.is_authenticated:\n            raise GraphQLError(\"Authentication required.\")\n        return PerformanceReview.objects.get(id=review_id)",
+  "diagnosis": "The GraphQL resolver queries PerformanceReview by review_id directly without checking whether info.context.user is the employee being evaluated, the reviewing manager, or an authorized HR specialist. Any authenticated employee can read sensitive salary reviews and peer ratings of all colleagues.",
+  "exploit_request": "POST /graphql/ HTTP/1.1\nHost: hr.example.com\nAuthorization: Bearer <employee_token>\nContent-Type: application/json\n\n{\"query\": \"query { performanceReview(reviewId: 541) { id rating salaryRecommendation managerNotes } }\"}",
+  "corrected_code": "class Query(graphene.ObjectType):\n    performance_review = graphene.Field(PerformanceReviewType, review_id=graphene.Int(required=True))\n\n    def resolve_performance_review(self, info, review_id):\n        user = info.context.user\n        if not user.is_authenticated:\n            raise GraphQLError(\"Authentication required.\")\n        try:\n            return PerformanceReview.objects.filter(\n                Q(employee=user) | Q(reviewer=user) | Q(hr_partner=user),\n                id=review_id\n            ).get()\n        except PerformanceReview.DoesNotExist:\n            raise GraphQLError(\"Review not found or access denied.\")",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

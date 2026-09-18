@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.get('/api/invoices/:invoiceId', async (req, res) => {\n  const invoice = await db.Invoice.findOne({ where: { id: req.params.invoiceId } });\n  res.json(invoice);\n});",
+  "diagnosis": "Invoice data is returned by querying the invoiceId directly from the request parameter, missing checks to ensure the invoice belongs to the requesting user's tenant or account.",
+  "exploit_request": "GET /api/invoices/INV-8821 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.get('/api/invoices/:invoiceId', async (req, res) => {\n  const invoice = await db.Invoice.findOne({ where: { id: req.params.invoiceId, accountId: req.user.accountId } });\n  if (!invoice) return res.status(404).send('Not Found');\n  res.json(invoice);\n});"
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "io.on('connection', (socket) => {\n  socket.on('spectate_terminal', ({ instanceId }) => {\n    socket.join(`terminal:${instanceId}`);\n    socket.emit('spectate_ready', { instanceId });\n  });\n});",
+  "diagnosis": "Socket joins the room for instanceId upon request without authenticating that the user has administrative or read access to that virtual machine. Any authenticated developer can join terminal rooms and watch live command line keystrokes, environment variables, and SSH credentials streamed by other engineers.",
+  "exploit_request": "socket.emit('spectate_terminal', { instanceId: 'vm_prod_database_01' });\nsocket.on('terminal_chunk', (chunk) => console.log('Terminal stream:', chunk));",
+  "corrected_code": "io.on('connection', (socket) => {\n  socket.on('spectate_terminal', async ({ instanceId }) => {\n    const instance = await CloudServer.findOne({ where: { id: instanceId, accountId: socket.data.accountId } });\n    if (!instance) {\n      return socket.emit('error', { message: 'Access denied: unassigned cloud server terminal' });\n    }\n    socket.join(`terminal:${instanceId}`);\n    socket.emit('spectate_ready', { instanceId });\n  });\n});",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

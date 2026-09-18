@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Ability\n  include CanCan::Ability\n\n  def initialize(user)\n    return unless user.present?\n\n    # Rule ordering flaw: cannot rule defined first is overridden by subsequent blanket can rule\n    cannot :manage, BankTransfer, status: 'locked'\n    can :manage, BankTransfer, account: { user_id: user.id }\n  end\nend\n\nclass Banking::TransfersController < ApplicationController\n  def cancel\n    @transfer = BankTransfer.find(params[:id])\n    authorize! :manage, @transfer\n\n    @transfer.update!(status: 'cancelled')\n    render json: { message: 'Transfer cancelled' }\n  end\nend",
+  "diagnosis": "In CanCanCan, later authorization declarations take precedence over earlier ones. Declaring cannot :manage before can :manage causes the lock restriction to be completely overridden. Users can cancel locked, in-flight settlement wire transfers after funds have already been dispatched.",
+  "exploit_request": "POST /api/banking/transfers/tx_99182/cancel HTTP/1.1\nHost: api.vault-banking.com\nAuthorization: Bearer customer_jwt_token_44\nContent-Type: application/json",
+  "corrected_code": "class Ability\n  include CanCan::Ability\n\n  def initialize(user)\n    return unless user.present?\n\n    can :manage, BankTransfer, account: { user_id: user.id }\n    cannot :manage, BankTransfer, status: 'locked'\n  end\nend\n\nclass Banking::TransfersController < ApplicationController\n  def cancel\n    @transfer = BankTransfer.find(params[:id])\n    authorize! :manage, @transfer\n\n    @transfer.update!(status: 'cancelled')\n    render json: { message: 'Transfer cancelled' }\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

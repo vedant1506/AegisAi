@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.get('/api/messages', async (req, res) => {\n  const threadId = req.query.thread_id;\n  const messages = await db.Message.findAll({ where: { threadId } });\n  res.json(messages);\n});",
+  "diagnosis": "The endpoint retrieves all messages for a thread based on a query parameter without verifying if the authenticated user is a participant in that thread.",
+  "exploit_request": "GET /api/messages?thread_id=555 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.get('/api/messages', async (req, res) => {\n  const threadId = req.query.thread_id;\n  const thread = await db.Thread.findByPk(threadId, { include: 'Participants' });\n  if (!thread.Participants.some(p => p.id === req.user.id)) return res.status(403).send('Forbidden');\n  const messages = await db.Message.findAll({ where: { threadId } });\n  res.json(messages);\n});"
+}

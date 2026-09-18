@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const proxy = require('express-http-proxy');\n\napp.use('/telehealth/rooms/:roomId', verifyJwt, proxy(process.env.WEBRTC_SIGNALING_SERVICE, {\n  proxyReqPathResolver: (req) => {\n    return `/internal/video/rooms/${req.params.roomId}${req.url}`;\n  }\n}));",
+  "diagnosis": "The Express proxy forwards incoming requests to an internal WebRTC signaling microservice for roomId. Although verifyJwt ensures the caller is logged in, it never verifies that the caller is an invited patient or attending physician for that roomId. An unauthorized user can connect to private telehealth video sessions.",
+  "exploit_request": "GET /telehealth/rooms/room_psychiatry_session_4412/join HTTP/1.1\nHost: api.telemed-hospital.com\nAuthorization: Bearer <unauthorized_jwt>",
+  "corrected_code": "const proxy = require('express-http-proxy');\n\napp.use('/telehealth/rooms/:roomId', verifyJwt, async (req, res, next) => {\n  const { roomId } = req.params;\n  const isParticipant = await db.query(\n    'SELECT id FROM telehealth_room_participants WHERE room_id = $1 AND user_id = $2',\n    [roomId, req.user.id]\n  );\n  if (isParticipant.rowCount === 0) {\n    return res.status(403).json({ error: 'Access denied: you are not a participant in this consultation room' });\n  }\n  next();\n}, proxy(process.env.WEBRTC_SIGNALING_SERVICE, {\n  proxyReqPathResolver: (req) => {\n    return `/internal/video/rooms/${req.params.roomId}${req.url}`;\n  }\n}));",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

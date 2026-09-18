@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package graph\n\nimport (\n\t\"context\"\n\t\"myapp/graph/model\"\n)\n\nfunc (r *QueryResolver) UserSupportTicket(ctx context.Context, ticketID string) (*model.SupportTicket, error) {\n\t// BOLA: Fetches support ticket with private conversation threads solely by ticketID.\n\tticket, err := r.TicketService.FindByID(ctx, ticketID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn ticket, nil\n}\n",
+  "diagnosis": "The UserSupportTicket resolver retrieves customer support tickets and conversation threads by ticketID without verifying that the ticket was opened by the authenticated customer. Customers can view confidential customer support tickets, incident reports, and support agent messages of other accounts.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: help.saasplatform.com\nAuthorization: Bearer customer_jwt_771\nContent-Type: application/json\n\n{\"query\": \"query { userSupportTicket(ticketId: \\\"tkt_9021\\\") { id subject description replies { message author } } }\"}",
+  "corrected_code": "package graph\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"myapp/auth\"\n\t\"myapp/graph/model\"\n)\n\nfunc (r *QueryResolver) UserSupportTicket(ctx context.Context, ticketID string) (*model.SupportTicket, error) {\n\tuser, ok := auth.UserFromContext(ctx)\n\tif !ok {\n\t\treturn nil, errors.New(\"unauthenticated\")\n\t}\n\n\tticket, err := r.TicketService.FindByID(ctx, ticketID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tif ticket.CustomerID != user.ID && !user.IsSupportAgent {\n\t\treturn nil, errors.New(\"access denied to support ticket\")\n\t}\n\n\treturn ticket, nil\n}\n",
+  "severity": "MEDIUM",
+  "confidence": 0.87
+}

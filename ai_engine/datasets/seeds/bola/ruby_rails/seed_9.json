@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class AuditReportPolicy < ApplicationPolicy\n  def update?\n    # Logic flaw: allows any auditor to edit any audit report,\n    # ignoring regional banking branch boundaries\n    user.present? && (user.auditor? || record.created_by_id == user.id)\n  end\nend\n\nclass Audit::ReportsController < ApplicationController\n  def update\n    @report = AuditReport.find(params[:id])\n    authorize @report\n\n    @report.update!(report_params)\n    render json: @report\n  end\nend",
+  "diagnosis": "AuditReportPolicy#update? checks general user.auditor? status without restricting authorization to the branch or jurisdiction where the audit report was generated. Regional auditors can tamper with regulatory findings and fraud assessments compiled for other banking branches.",
+  "exploit_request": "PATCH /api/audit/reports/rep_7710 HTTP/1.1\nHost: compliance.finbank-core.com\nAuthorization: Bearer auditor_west_coast_token\nContent-Type: application/json\n\n{\"risk_rating\": \"LOW\", \"penalties_waived\": true}",
+  "corrected_code": "class AuditReportPolicy < ApplicationPolicy\n  def update?\n    return false unless user.present?\n    user.super_admin? || (user.auditor? && record.branch_id == user.branch_id)\n  end\nend\n\nclass Audit::ReportsController < ApplicationController\n  def update\n    @report = AuditReport.find(params[:id])\n    authorize @report\n\n    @report.update!(report_params)\n    render json: @report\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

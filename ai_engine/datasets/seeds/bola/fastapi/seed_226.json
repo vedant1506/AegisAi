@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "# Vault storage download sub-app mounted at: app.mount(\"/storage/vault\", vault_subapp)\nvault_subapp = FastAPI()\n\n@vault_subapp.get(\"/files/{file_id}/download\")\nasync def download_vault_file(\n    file_id: str,\n    storage: ObjectStorage = Depends(get_storage)\n):\n    file_meta = await storage.get_metadata(file_id)\n    if not file_meta:\n        raise HTTPException(status_code=404, detail=\"File not found\")\n    return StreamingResponse(\n        storage.open(file_meta.path),\n        media_type=file_meta.content_type\n    )",
+  "diagnosis": "The vault sub-application streams files from object storage based solely on file_id. It performs no user authentication or workspace validation, allowing unauthenticated attackers to download sensitive customer documents and uploaded archives.",
+  "exploit_request": "GET /storage/vault/files/7f2b98e1-4c12-4019-91a2-ec1004123890/download HTTP/1.1\nHost: files.cloudvault.com",
+  "corrected_code": "# Vault storage download sub-app mounted at: app.mount(\"/storage/vault\", vault_subapp)\nvault_subapp = FastAPI()\n\n@vault_subapp.get(\"/files/{file_id}/download\")\nasync def download_vault_file(\n    file_id: str,\n    storage: ObjectStorage = Depends(get_storage),\n    current_user: User = Depends(get_current_user)\n):\n    file_meta = await storage.get_metadata(file_id)\n    if not file_meta or (file_meta.tenant_id != current_user.tenant_id and not current_user.is_admin):\n        raise HTTPException(status_code=404, detail=\"File not found or access denied\")\n    return StreamingResponse(\n        storage.open(file_meta.path),\n        media_type=file_meta.content_type\n    )",
+  "severity": "HIGH",
+  "confidence": 0.95
+}
