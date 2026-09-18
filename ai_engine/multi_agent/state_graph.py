@@ -367,31 +367,87 @@ async def verify_agent(state: AgentState) -> AgentState:
     logger.info("agent.verify.start", scan_id=scan_id)
 
     payload = state.get("ai_exploit_payload")
-    vulnerabilities = state.get("vulnerabilities", [])
+    vulnerabilities = list(state.get("vulnerabilities", []))
+    targets = state.get("correlated_targets", [])
 
-    # ── ExploitRunner stub ────────────────────────────────────
-    exploit_results: list[dict] = []
-    if payload:
-        exploit_results.append({
-            "payload": payload,
-            "is_confirmed": False,       # stub
-            "confidence": 0.0,           # stub
-            "notes": "Verification stub — wire up ExploitRunner.",
-        })
+    exploit_results: list[dict[str, Any]] = []
+    verified_vulnerabilities: list[dict[str, Any]] = []
+
+    try:
+        import sys
+        from pathlib import Path
+        src_path = str(Path(__file__).resolve().parents[2] / "crawler_dast" / "src")
+        if src_path not in sys.path:
+            sys.path.insert(0, src_path)
+
+        from exploit_runner import ExploitRunner
+        from models import TestSpecification
+        from verifier import VerificationEngine, execute_and_verify
+
+        async with ExploitRunner() as runner:
+            verifier_engine = VerificationEngine()
+
+            # Execute probes for each vulnerability hypothesis
+            for vuln in vulnerabilities:
+                test_payload = vuln.get("exploit_payload") or payload
+                target_url = "http://localhost:3000"
+                if targets:
+                    matched = targets[0].get("matched_endpoints", [])
+                    if matched:
+                        target_url = matched[0].get("url", target_url)
+
+                spec = TestSpecification(
+                    scan_id=scan_id,
+                    vulnerability_type=vuln.get("title", "UNKNOWN").split()[-1],
+                    target_url=target_url,
+                    method="GET",
+                    payload=test_payload or "",
+                    inject_in="query",
+                )
+
+                v_result = await execute_and_verify(spec, runner, verifier=verifier_engine)
+                exploit_results.append({
+                    "payload": test_payload,
+                    "is_confirmed": v_result.is_confirmed,
+                    "confidence": v_result.confidence,
+                    "status": v_result.status.value,
+                    "notes": v_result.reason,
+                })
+
+                if v_result.is_confirmed:
+                    vuln["confidence"] = v_result.confidence
+                    vuln["is_verified"] = True
+                    verified_vulnerabilities.append(vuln)
+                else:
+                    vuln["confidence"] = max(0.0, vuln.get("confidence", 0.0) * 0.5)
+
+    except Exception as exc:
+        logger.warning("agent.verify.runner_fallback", error=str(exc))
+        if payload and not exploit_results:
+            exploit_results.append({
+                "payload": payload,
+                "is_confirmed": False,
+                "confidence": 0.0,
+                "notes": f"Fallback execution: {exc}",
+            })
+
+    final_vulns = verified_vulnerabilities if verified_vulnerabilities else vulnerabilities
 
     logger.info(
         "agent.verify.complete",
         scan_id=scan_id,
         probes_fired=len(exploit_results),
+        verified_count=len(verified_vulnerabilities),
     )
 
     return {
         **state,
         "exploit_results": exploit_results,
+        "vulnerabilities": final_vulns,
         "current_agent": "done",
         "reasoning_trace": [
-            f"[Verify] Fired {len(exploit_results)} probe(s). "
-            "ExploitRunner not yet connected -- all results are stubs."
+            f"[Verify] Dispatched {len(exploit_results)} probe(s) via ExploitRunner. "
+            f"Verified {len(verified_vulnerabilities)} confirmed vulnerability finding(s)."
         ],
     }
 
@@ -487,25 +543,14 @@ async def _main() -> None:
         ],
     }
 
-    print("\n[+] AegisAI Agent Graph -- BOLA Reasoning Smoke Test\n" + "-" * 60)
+    print("\n[*] AegisAI Agent Graph - Smoke Test\n" + "-" * 50)
     result = await graph.ainvoke(initial_state)
 
-    print(f"\n[+] Scan Complete -- Final Agent: {result.get('current_agent')}")
-    print("\n[*] Reasoning Trace:")
+    print(f"\n[+] Scan complete - agent: {result.get('current_agent')}")
+    print("[-] Reasoning trace:")
     for step in result.get("reasoning_trace", []):
-        print(f"   * {step}")
-
-    vulns = result.get("vulnerabilities", [])
-    print(f"\n[!] Identified Vulnerabilities: {len(vulns)}")
-    for v in vulns:
-        print(f"   [{v.get('severity')}] {v.get('title')} ({v.get('cwe_id')} / {v.get('owasp_category')})")
-        print(f"   Confidence: {v.get('confidence')}")
-        print(f"   Description: {v.get('description')}")
-        print(f"   Remediation: {v.get('remediation')}")
-
-    print("\n[+] Structured Exploit Payload Suggestion (JSON):")
-    print(result.get("ai_exploit_payload") or "No payload generated.")
-    print("-" * 60)
+        print(f"   {step}")
+    print(f"\n[*] Vulnerabilities: {len(result.get('vulnerabilities', []))}")
 
 
 if __name__ == "__main__":

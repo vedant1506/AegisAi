@@ -212,8 +212,24 @@ async def _run_scan_pipeline(
     # TODO: Step 2 — SAST
     # ast_results = await run_ast_analysis(repo_path)
 
-    # TODO: Step 3 — DAST
-    # endpoint_results = await run_playwright_crawler(target_url)
+    # ── Step 3: DAST Reconnaissance Crawler (Shahad) ──────────
+    endpoint_results = []
+    try:
+        import sys
+        from pathlib import Path
+        dast_src = str(Path(__file__).resolve().parents[3] / "crawler_dast" / "src")
+        if dast_src not in sys.path:
+            sys.path.insert(0, dast_src)
+        from playwright_bot import run_playwright_crawler
+        recon_output = await run_playwright_crawler(target_url=target_url, scan_id=scan_id)
+        endpoint_results = recon_output.to_endpoint_schemas()
+        logger.info(
+            "scan.pipeline.dast_complete",
+            scan_id=scan_id,
+            endpoints_discovered=len(endpoint_results),
+        )
+    except Exception as exc:
+        logger.warning("scan.pipeline.dast_failed", scan_id=scan_id, error=str(exc))
 
     # TODO: Step 4 — AI Agent Graph
     # from ai_engine.multi_agent.state_graph import build_graph
