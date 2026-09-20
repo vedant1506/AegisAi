@@ -227,6 +227,7 @@ class ExploitEvidence(BaseModel):
     response_body: str
     response_headers: dict[str, str] = Field(default_factory=dict)
     duration_ms: float
+    dom_evidence: dict[str, Any] | None = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 

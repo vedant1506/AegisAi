@@ -230,3 +230,136 @@ def test_false_positive_filter_identical_baseline(fp_filter):
     summary_text = (filtered.reason + " " + (filtered.false_positive_reason or "") + " " + filtered.observed_behavior).lower()
     assert "identical" in summary_text
 
+
+# ── Phase 4B Detection Improvement Tests ─────────────────────
+
+def test_sqli_boolean_differential_verification(verifier):
+    spec = TestSpecification(
+        scan_id="scan-4b",
+        vulnerability_type="SQLI",
+        target_url="http://localhost:3000/rest/products/search",
+        payload="apple')) OR 1=1--",
+        inject_in="query",
+        param_name="q",
+    )
+    evidence = ExploitEvidence(
+        request_url="http://localhost:3000/rest/products/search?q=apple%27%29%29%20OR%201=1--",
+        request_method="GET",
+        response_status=200,
+        response_body='{"status":"success","data":[' + ','.join(['{"id":' + str(i) + '}' for i in range(50)]) + ']}',
+        duration_ms=45.0,
+    )
+    baseline_evidence = ExploitEvidence(
+        request_url="http://localhost:3000/rest/products/search?q=apple%27%29%29%20AND%201=2--",
+        request_method="GET",
+        response_status=200,
+        response_body='{"status":"success","data":[]}',
+        duration_ms=25.0,
+    )
+
+    result = verifier.verify(spec, evidence, baseline_evidence=baseline_evidence)
+    assert result.status == VerificationStatus.VERIFIED
+    assert result.is_confirmed is True
+    assert result.confidence >= 0.90
+    assert "differential" in result.reason.lower() or "boolean" in result.reason.lower()
+
+
+def test_xss_dom_evidence_verification(verifier):
+    spec = TestSpecification(
+        scan_id="scan-4b",
+        vulnerability_type="XSS",
+        target_url="http://localhost:3000/#/search",
+        payload="<iframe src=\"javascript:alert(1)\">",
+        inject_in="spa_dom",
+        param_name="q",
+    )
+    evidence = ExploitEvidence(
+        request_url="http://localhost:3000/#/search?q=<iframe src=\"javascript:alert(1)\">",
+        request_method="GET",
+        response_status=200,
+        response_headers={"content-type": "text/html"},
+        response_body="<html><head></head><body><app-root></app-root></body></html>",
+        duration_ms=850.0,
+        dom_evidence={
+            "rendered_in_dom": True,
+            "elements_found": ["iframe[src='javascript:alert(1)']"],
+            "element_count": 1,
+            "iframe_count": 1,
+            "marker_count": 0,
+        },
+    )
+
+    result = verifier.verify(spec, evidence)
+    assert result.status == VerificationStatus.VERIFIED
+    assert result.is_confirmed is True
+    assert result.confidence >= 0.90
+    assert "dom" in result.reason.lower()
+
+
+def test_xss_safely_encoded_negative_control(verifier):
+    spec = TestSpecification(
+        scan_id="scan-4b",
+        vulnerability_type="XSS",
+        target_url="http://localhost:3000/#/search",
+        payload="<script>alert(1)</script>",
+    )
+    evidence = ExploitEvidence(
+        request_url="http://localhost:3000/#/search?q=test",
+        request_method="GET",
+        response_status=200,
+        response_headers={"content-type": "text/html"},
+        response_body="<div>Search query: &lt;script&gt;alert(1)&lt;/script&gt;</div>",
+        duration_ms=35.0,
+    )
+
+    result = verifier.verify(spec, evidence)
+    assert result.status == VerificationStatus.FALSE_POSITIVE
+    assert result.is_confirmed is False
+    assert "encoded" in result.reason.lower() or "escaped" in result.reason.lower()
+
+
+def test_auth_bypass_admin_registration(verifier):
+    spec = TestSpecification(
+        scan_id="scan-4b",
+        vulnerability_type="AUTH_BYPASS",
+        target_url="http://localhost:3000/api/Users",
+        method="POST",
+        body={
+            "email": "attacker_admin@test.com",
+            "password": "Password123!",
+            "role": "admin",
+        },
+    )
+    evidence = ExploitEvidence(
+        request_url="http://localhost:3000/api/Users",
+        request_method="POST",
+        response_status=201,
+        response_body='{"status":"success","data":{"id":15,"email":"attacker_admin@test.com","role":"admin"}}',
+        duration_ms=50.0,
+    )
+
+    result = verifier.verify(spec, evidence)
+    assert result.status == VerificationStatus.VERIFIED
+    assert result.is_confirmed is True
+    assert "admin" in result.reason.lower()
+
+
+def test_auth_bypass_401_rejection_negative_control(verifier):
+    spec = TestSpecification(
+        scan_id="scan-4b",
+        vulnerability_type="AUTH_BYPASS",
+        target_url="http://localhost:3000/rest/user/change-password",
+        method="GET",
+    )
+    evidence = ExploitEvidence(
+        request_url="http://localhost:3000/rest/user/change-password",
+        request_method="GET",
+        response_status=401,
+        response_body='{"error":"Unauthorized"}',
+        duration_ms=20.0,
+    )
+
+    result = verifier.verify(spec, evidence)
+    assert result.status == VerificationStatus.FALSE_POSITIVE
+    assert result.is_confirmed is False
+

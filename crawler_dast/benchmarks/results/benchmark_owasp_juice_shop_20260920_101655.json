@@ -1,0 +1,146 @@
+{
+  "testbed_name": "OWASP Juice Shop",
+  "target_url": "http://localhost:3000",
+  "timestamp": "2026-09-20T10:16:55.844291",
+  "duration_seconds": 8.82,
+  "total_ground_truth": 5,
+  "detected_vulnerabilities": 3,
+  "true_positives": 2,
+  "false_positives": 1,
+  "false_negatives": 3,
+  "precision": 0.6667,
+  "recall": 0.4,
+  "f1_score": 0.5,
+  "detection_rate": 0.4,
+  "false_positive_rate": 0.1429,
+  "error_count": 0,
+  "routes_discovered": 8,
+  "apis_discovered": 20,
+  "tests_executed": 9,
+  "start_time": "2026-09-20T10:16:47.019935",
+  "end_time": "2026-09-20T10:16:55.844163",
+  "configuration": {
+    "max_pages": 8,
+    "timeout_ms": 15000,
+    "boundary_enforcement": [
+      "localhost",
+      "127.0.0.1"
+    ],
+    "target_url": "http://localhost:3000",
+    "playwright_headless": true
+  },
+  "matched_ground_truth_ids": [
+    "JS-VULN-02",
+    "JS-VULN-05"
+  ],
+  "findings_detail": [
+    {
+      "test_id": "BENCH-TC-01-BOLA",
+      "vuln_type": "BOLA",
+      "status": "VERIFIED",
+      "confidence": 0.95,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/rest/basket/1",
+      "http_status": 200,
+      "response_time_ms": 42.68,
+      "reason": "Cross-tenant IDOR confirmed: victim attributes ['Products', 'UserId', 'id'] exposed.",
+      "matched_ground_truth": "JS-VULN-02"
+    },
+    {
+      "test_id": "BENCH-TC-02-SQLI",
+      "vuln_type": "SQLI",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/rest/products/search?q=%27%29%29+UNION+SELECT+id%2C+email%2C+password%2C+%274%27%2C+%275%27%2C+%276%27%2C+%277%27%2C+%278%27%2C+%279%27+FROM+Users--",
+      "http_status": 200,
+      "response_time_ms": 27.3,
+      "reason": "Payload did not trigger detectable database error or syntax leak.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-TC-03-XSS",
+      "vuln_type": "XSS",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.05,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/rest/products/search?q=%3Ciframe+src%3D%22javascript%3Aalert%281%29%22%3E",
+      "http_status": 200,
+      "response_time_ms": 18.42,
+      "reason": "Input was sanitized, filtered, or not reflected.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-TC-04-AUTH-BYPASS",
+      "vuln_type": "AUTH_BYPASS",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/api/Users",
+      "http_status": 201,
+      "response_time_ms": 47.08,
+      "reason": "Protected resource not exposed anonymously.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-TC-05-INFO-LEAK",
+      "vuln_type": "INFO_LEAK",
+      "status": "LIKELY",
+      "confidence": 0.75,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/ftp",
+      "http_status": 200,
+      "response_time_ms": 6.28,
+      "reason": "Evidence contains the expected exploit signature 'listing directory /ftp'.",
+      "matched_ground_truth": "JS-VULN-05"
+    },
+    {
+      "test_id": "BENCH-TC-06-CTRL-SOFT404",
+      "vuln_type": "BOLA",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.0,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/api/users/9999999",
+      "http_status": 401,
+      "response_time_ms": 3.16,
+      "reason": "Authorization check correctly rejected cross-tenant access.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-TC-07-CTRL-STATIC",
+      "vuln_type": "BOLA",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.0,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/assets/public/favicon.ico",
+      "http_status": 200,
+      "response_time_ms": 12.65,
+      "reason": "Target is a public static file, not a protected user-specific resource.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-TC-08-CTRL-DENIED",
+      "vuln_type": "AUTH_BYPASS",
+      "status": "VERIFIED",
+      "confidence": 0.88,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/rest/admin/application-configuration",
+      "http_status": 200,
+      "response_time_ms": 10.02,
+      "reason": "Protected administrative or sensitive resource accessible anonymously.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-TC-09-CTRL-BENIGN",
+      "vuln_type": "SQLI",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/rest/products/search?q=banana",
+      "http_status": 200,
+      "response_time_ms": 25.66,
+      "reason": "Payload did not trigger detectable database error or syntax leak.",
+      "matched_ground_truth": null
+    }
+  ]
+}

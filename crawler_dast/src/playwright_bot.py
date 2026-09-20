@@ -268,16 +268,17 @@ class PlaywrightBot:
             self.token_manager.ingest_from_headers(response.headers, session_name="default")
 
             parsed = urlparse(url)
+            clean_endpoint = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
             query_params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
 
             # Track query parameters
             for param_name, param_val in query_params.items():
-                param_key = f"{url}:{param_name}"
+                param_key = f"{clean_endpoint}:{param_name}"
                 if param_key not in self._discovered_parameters:
                     self._discovered_parameters[param_key] = DiscoveredParameter(
                         name=param_name,
                         location="query",
-                        endpoint_url=f"{parsed.scheme}://{parsed.netloc}{parsed.path}",
+                        endpoint_url=clean_endpoint,
                         method=method,
                         sample_value=param_val,
                     )
@@ -574,10 +575,14 @@ class PlaywrightBot:
         duration = time.monotonic() - start_mono
         summary = self.token_manager.get_bundle_summary("default")
 
+        roles = summary.get("jwt_roles", [])
+        if isinstance(roles, str):
+            roles = [roles] if roles else []
+
         auth_meta = AuthMetadata(
             has_jwt=summary.get("has_jwt", False),
             jwt_subject=summary.get("jwt_subject"),
-            jwt_roles=summary.get("jwt_roles", []),
+            jwt_roles=roles,
             jwt_expired=summary.get("jwt_expired", False),
             has_session_cookie=summary.get("has_session_cookie", False),
             cookie_names=summary.get("cookie_names", []),
