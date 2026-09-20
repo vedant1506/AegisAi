@@ -277,7 +277,7 @@ Developed as a Major Academic Capstone Project at **GTU - School of Engineering 
 
 ## ⚖️ Responsible Disclosure & Legal Disclaimer
 
-> **IMPORTANT:** AegisAI is engineered exclusively for **authorized security evaluations, defensive posture enhancement, and academic AppSec research**. It must only be executed against applications and repositories you own or possess **explicit written authorization** to assess. The authors and GTU-GSET accept no liability for illicit usage or damages.
+> **IMPORTANT:** AegisAI is engineered exclusively for **authorized security evaluations, defensive posture enhancement, and academic AppSec research**. It must only be executed against applications and repositories you own or possess **explicit written authorization** to assess. The authors and GTU-SET accept no liability for illicit usage or damages.
 
 ---
 
