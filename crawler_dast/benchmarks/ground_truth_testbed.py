@@ -102,6 +102,50 @@ CRAPI_GROUND_TRUTH: list[dict[str, Any]] = [
     },
 ]
 
+CRAPI_GROUND_TRUTH_V1_1_6: list[dict[str, Any]] = [
+    {
+        "id": "CRAPI-VULN-01-V116",
+        "title": "BOLA in Vehicle Location Data",
+        "cwe_id": "CWE-639",
+        "vulnerability_type": "BOLA",
+        "endpoint": "/identity/api/v2/vehicle/{carId}/location",
+        "method": "GET",
+        "parameter": "carId",
+        "severity": "HIGH",
+        "notes": "Version-aligned: replaces obsolete v1 route with verified v2 endpoint exposing victim location without authorization checks.",
+    },
+    {
+        "id": "CRAPI-VULN-02-V116",
+        "title": "Broken Authentication in Password Reset OTP",
+        "cwe_id": "CWE-307",
+        "vulnerability_type": "AUTH_BYPASS",
+        "endpoint": "/identity/api/auth/v2/check-otp",
+        "method": "POST",
+        "severity": "CRITICAL",
+        "notes": "Version-aligned: unthrottled OTP verification endpoint in v1.1.6 permitting unlimited attempts.",
+    },
+    {
+        "id": "CRAPI-VULN-03-V116",
+        "title": "BOLA in Mechanic Service Report",
+        "cwe_id": "CWE-639",
+        "vulnerability_type": "BOLA",
+        "endpoint": "/workshop/api/merchant/contact_mechanic",
+        "method": "POST",
+        "severity": "HIGH",
+        "notes": "Identical across versions: leaking cross-tenant contact information.",
+    },
+    {
+        "id": "CRAPI-VULN-04-V116",
+        "title": "Mass Assignment in Order Return",
+        "cwe_id": "CWE-915",
+        "vulnerability_type": "MASS_ASSIGNMENT",
+        "endpoint": "/workshop/api/shop/orders/{id}",
+        "method": "PUT",
+        "severity": "HIGH",
+        "notes": "Identical across versions: unauthorized status update via unvetted fields.",
+    },
+]
+
 CUSTOM_AUTH_GROUND_TRUTH: list[dict[str, Any]] = [
     {
         "id": "AUTH-GT-01",
@@ -208,6 +252,8 @@ def get_ground_truth_catalog(testbed_name: str) -> list[dict[str, Any]]:
     key = testbed_name.lower()
     if "juice" in key:
         return JUICE_SHOP_GROUND_TRUTH
+    elif "crapi_v1_1_6" in key or "crapi_v116" in key or "crapi v1.1.6" in key or "v1.1.6" in key:
+        return CRAPI_GROUND_TRUTH_V1_1_6
     elif "crapi" in key:
         return CRAPI_GROUND_TRUTH
     elif "custom" in key or "auth" in key:

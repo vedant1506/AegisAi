@@ -1,0 +1,136 @@
+{
+  "testbed_name": "OWASP crAPI",
+  "target_url": "http://localhost:8888",
+  "timestamp": "2026-09-20T11:16:34.122420",
+  "duration_seconds": 8.57,
+  "total_ground_truth": 4,
+  "detected_vulnerabilities": 2,
+  "true_positives": 2,
+  "false_positives": 0,
+  "false_negatives": 2,
+  "precision": 1.0,
+  "recall": 0.5,
+  "f1_score": 0.6667,
+  "detection_rate": 0.5,
+  "false_positive_rate": 0.0,
+  "error_count": 0,
+  "routes_discovered": 8,
+  "apis_discovered": 5,
+  "tests_executed": 8,
+  "start_time": "2026-09-20T11:16:25.553545",
+  "end_time": "2026-09-20T11:16:34.122318",
+  "configuration": {
+    "max_pages": 8,
+    "timeout_ms": 15000,
+    "boundary_enforcement": [
+      "localhost",
+      "127.0.0.1"
+    ],
+    "target_url": "http://localhost:8888",
+    "playwright_headless": true,
+    "crawl_duration_seconds": 7.63,
+    "verification_duration_seconds": 0.55
+  },
+  "matched_ground_truth_ids": [
+    "CRAPI-VULN-03",
+    "CRAPI-VULN-04"
+  ],
+  "findings_detail": [
+    {
+      "test_id": "BENCH-CRAPI-01-BOLA",
+      "vuln_type": "BOLA",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "url": "http://localhost:8888/identity/api/auth/v1/user/profile",
+      "http_status": 404,
+      "response_time_ms": 280.57,
+      "reason": "Endpoint did not return protected data.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-CRAPI-02-AUTH-BYPASS",
+      "vuln_type": "AUTH_BYPASS",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "url": "http://localhost:8888/identity/api/auth/v1/check-otp",
+      "http_status": 404,
+      "response_time_ms": 11.75,
+      "reason": "Protected resource not exposed anonymously.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-CRAPI-03-BOLA",
+      "vuln_type": "BOLA",
+      "status": "VERIFIED",
+      "confidence": 0.95,
+      "is_confirmed": true,
+      "url": "http://localhost:8888/workshop/api/merchant/contact_mechanic",
+      "http_status": 200,
+      "response_time_ms": 99.23,
+      "reason": "Cross-tenant IDOR confirmed: victim attributes ['email', 'name', 'id'] exposed.",
+      "matched_ground_truth": "CRAPI-VULN-03"
+    },
+    {
+      "test_id": "BENCH-CRAPI-04-MASS-ASSIGNMENT",
+      "vuln_type": "MASS_ASSIGNMENT",
+      "status": "LIKELY",
+      "confidence": 0.75,
+      "is_confirmed": true,
+      "url": "http://localhost:8888/workshop/api/shop/orders/8",
+      "http_status": 200,
+      "response_time_ms": 65.08,
+      "reason": "Evidence contains the expected exploit signature 'delivered'.",
+      "matched_ground_truth": "CRAPI-VULN-04"
+    },
+    {
+      "test_id": "BENCH-CRAPI-05-CTRL-SOFT404",
+      "vuln_type": "BOLA",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "url": "http://localhost:8888/identity/api/v2/user/nonexistent_9999999",
+      "http_status": 404,
+      "response_time_ms": 16.97,
+      "reason": "Endpoint did not return protected data.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-CRAPI-06-CTRL-STATIC",
+      "vuln_type": "BOLA",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "url": "http://localhost:8888/static/media/logo.png",
+      "http_status": 404,
+      "response_time_ms": 2.64,
+      "reason": "Endpoint did not return protected data.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-CRAPI-07-CTRL-DENIED",
+      "vuln_type": "AUTH_BYPASS",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "url": "http://localhost:8888/identity/api/v2/user/dashboard",
+      "http_status": 404,
+      "response_time_ms": 12.37,
+      "reason": "Protected resource not exposed anonymously.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-CRAPI-08-CTRL-BENIGN",
+      "vuln_type": "BOLA",
+      "status": "INCONCLUSIVE",
+      "confidence": 0.4,
+      "is_confirmed": false,
+      "url": "http://localhost:8888/workshop/api/shop/products",
+      "http_status": 200,
+      "response_time_ms": 58.54,
+      "reason": "Response returned 200 OK without definitive proof of private data leakage.",
+      "matched_ground_truth": null
+    }
+  ]
+}

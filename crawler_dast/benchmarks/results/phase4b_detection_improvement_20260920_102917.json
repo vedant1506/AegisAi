@@ -1,0 +1,149 @@
+{
+  "testbed_name": "OWASP Juice Shop",
+  "target_url": "http://localhost:3000",
+  "timestamp": "2026-09-20T10:29:17.973741",
+  "duration_seconds": 11.39,
+  "total_ground_truth": 5,
+  "detected_vulnerabilities": 5,
+  "true_positives": 5,
+  "false_positives": 0,
+  "false_negatives": 0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1_score": 1.0,
+  "detection_rate": 1.0,
+  "false_positive_rate": 0.0,
+  "error_count": 0,
+  "routes_discovered": 8,
+  "apis_discovered": 19,
+  "tests_executed": 9,
+  "start_time": "2026-09-20T10:29:06.586548",
+  "end_time": "2026-09-20T10:29:17.973604",
+  "configuration": {
+    "max_pages": 8,
+    "timeout_ms": 15000,
+    "boundary_enforcement": [
+      "localhost",
+      "127.0.0.1"
+    ],
+    "target_url": "http://localhost:3000",
+    "playwright_headless": true
+  },
+  "matched_ground_truth_ids": [
+    "JS-VULN-01",
+    "JS-VULN-02",
+    "JS-VULN-03",
+    "JS-VULN-04",
+    "JS-VULN-05"
+  ],
+  "findings_detail": [
+    {
+      "test_id": "BENCH-TC-01-BOLA",
+      "vuln_type": "BOLA",
+      "status": "VERIFIED",
+      "confidence": 0.95,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/rest/basket/1",
+      "http_status": 200,
+      "response_time_ms": 30.33,
+      "reason": "Cross-tenant IDOR confirmed: victim attributes ['Products', 'UserId', 'id'] exposed.",
+      "matched_ground_truth": "JS-VULN-02"
+    },
+    {
+      "test_id": "BENCH-TC-02-SQLI",
+      "vuln_type": "SQLI",
+      "status": "VERIFIED",
+      "confidence": 0.92,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/rest/products/search?q=apple%27%29%29+OR+1%3D1--",
+      "http_status": 200,
+      "response_time_ms": 12.08,
+      "reason": "Boolean differential SQL injection confirmed: response altered significantly by logical expression (ratio: 273.1x, diff: 8162B).",
+      "matched_ground_truth": "JS-VULN-01"
+    },
+    {
+      "test_id": "BENCH-TC-03-XSS",
+      "vuln_type": "XSS",
+      "status": "VERIFIED",
+      "confidence": 0.95,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/#/search?q=<iframe src=\"javascript:alert(1)\">",
+      "http_status": 200,
+      "response_time_ms": 2841.95,
+      "reason": "DOM-based XSS confirmed: browser DOM inspection verified active injection of [\"iframe[src='javascript:alert(1)']\"] into rendered page tree.",
+      "matched_ground_truth": "JS-VULN-03"
+    },
+    {
+      "test_id": "BENCH-TC-04-AUTH-BYPASS",
+      "vuln_type": "AUTH_BYPASS",
+      "status": "VERIFIED",
+      "confidence": 0.88,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/api/Users",
+      "http_status": 201,
+      "response_time_ms": 29.45,
+      "reason": "Improper authentication / privilege escalation: user successfully registered with elevated 'admin' role.",
+      "matched_ground_truth": "JS-VULN-04"
+    },
+    {
+      "test_id": "BENCH-TC-05-INFO-LEAK",
+      "vuln_type": "INFO_LEAK",
+      "status": "LIKELY",
+      "confidence": 0.75,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/ftp",
+      "http_status": 200,
+      "response_time_ms": 7.83,
+      "reason": "Evidence contains the expected exploit signature 'listing directory /ftp'.",
+      "matched_ground_truth": "JS-VULN-05"
+    },
+    {
+      "test_id": "BENCH-TC-06-CTRL-SOFT404",
+      "vuln_type": "BOLA",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.0,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/api/users/9999999",
+      "http_status": 401,
+      "response_time_ms": 4.01,
+      "reason": "Authorization check correctly rejected cross-tenant access.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-TC-07-CTRL-STATIC",
+      "vuln_type": "BOLA",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.0,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/assets/public/favicon.ico",
+      "http_status": 200,
+      "response_time_ms": 11.92,
+      "reason": "Target is a public static file, not a protected user-specific resource.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-TC-08-CTRL-DENIED",
+      "vuln_type": "AUTH_BYPASS",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.0,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/rest/user/change-password",
+      "http_status": 401,
+      "response_time_ms": 5.5,
+      "reason": "Authentication / authorization properly enforced: request was rejected.",
+      "matched_ground_truth": null
+    },
+    {
+      "test_id": "BENCH-TC-09-CTRL-BENIGN",
+      "vuln_type": "SQLI",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/rest/products/search?q=banana",
+      "http_status": 200,
+      "response_time_ms": 44.72,
+      "reason": "Payload did not trigger detectable database error, boolean divergence, or response anomaly.",
+      "matched_ground_truth": null
+    }
+  ]
+}
