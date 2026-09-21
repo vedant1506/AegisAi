@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const express = require('express');\nconst router = express.Router();\n\nrouter.delete('/auth/passkeys/devices/:credentialId', requireAuth, async (req, res) => {\n  const { credentialId } = req.params;\n\n  const result = await knex('user_security_keys')\n    .where({ credential_id: credentialId })\n    .del();\n\n  if (!result) {\n    return res.status(404).json({ error: 'Security key not found' });\n  }\n\n  return res.json({ status: 'unregistered', credentialId });\n});",
+  "diagnosis": "The passkey deletion route removes security keys by credential_id without checking whether the record belongs to req.user.id. Any authenticated user who identifies or enumerates a target user's passkey credential ID can delete their hardware security key, revoking their primary or multi-factor authentication mechanism and causing a denial of service.",
+  "exploit_request": "DELETE /auth/passkeys/devices/cred_sec_99381024 HTTP/1.1\nHost: account.securevault.io\nAuthorization: Bearer <attacker_jwt>\nContent-Length: 0",
+  "corrected_code": "const express = require('express');\nconst router = express.Router();\n\nrouter.delete('/auth/passkeys/devices/:credentialId', requireAuth, async (req, res) => {\n  const { credentialId } = req.params;\n\n  const result = await knex('user_security_keys')\n    .where({\n      credential_id: credentialId,\n      user_id: req.user.id\n    })\n    .del();\n\n  if (!result) {\n    return res.status(403).json({ error: 'Security key not found or unauthorized' });\n  }\n\n  return res.json({ status: 'unregistered', credentialId });\n});",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

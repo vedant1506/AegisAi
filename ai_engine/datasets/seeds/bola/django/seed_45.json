@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@require_POST\ndef attach_asset_to_ticket(request, ticket_id):\n    ticket = SupportTicket.objects.get(id=ticket_id, tenant=request.tenant)\n    asset_id = request.POST.get('asset_id')\n    asset = DigitalAsset.objects.get(id=asset_id)\n    ticket.attachments.add(asset)\n    return JsonResponse({'status': 'asset linked'})",
+  "diagnosis": "While the ticket lookup correctly enforces tenant=request.tenant, the DigitalAsset lookup does not check tenant scoping. An attacker can supply asset_id belonging to another tenant and attach it to their ticket, exposing foreign tenant files.",
+  "exploit_request": "POST /api/tickets/902/attach-asset/ HTTP/1.1\nHost: support.example.com\nCookie: sessionid=tenant_b_session\nContent-Type: application/x-www-form-urlencoded\n\nasset_id=10542",
+  "corrected_code": "@require_POST\ndef attach_asset_to_ticket(request, ticket_id):\n    ticket = get_object_or_404(SupportTicket, id=ticket_id, tenant=request.tenant)\n    asset_id = request.POST.get('asset_id')\n    asset = get_object_or_404(DigitalAsset, id=asset_id, tenant=request.tenant)\n    ticket.attachments.add(asset)\n    return JsonResponse({'status': 'asset linked'})",
+  "severity": "MEDIUM",
+  "confidence": 0.91
+}

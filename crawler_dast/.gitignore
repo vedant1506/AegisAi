@@ -1,0 +1,2 @@
+# Ignore downloaded local target binaries / apps
+target_docker/juice-shop*/

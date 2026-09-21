@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package graph\n\nimport (\n\t\"context\"\n\t\"myapp/graph/model\"\n)\n\nfunc (r *QueryResolver) OrganizationApiKey(ctx context.Context, keyID string) (*model.APIKey, error) {\n\t// BOLA: Resolver returns API key details directly by keyID\n\t// without checking whether the key belongs to the caller's organization.\n\tkey, err := r.APIKeyStore.FindKeyByID(ctx, keyID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\treturn key, nil\n}\n",
+  "diagnosis": "The OrganizationApiKey GraphQL resolver fetches API keys solely by keyID without asserting that the retrieved key belongs to the organization of the authenticated user in context. An attacker from Organization A can retrieve the secret API credentials and programmatic authorization tokens of Organization B.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: developer.saas-platform.com\nAuthorization: Bearer org_a_developer_token\nContent-Type: application/json\n\n{\"query\": \"query { organizationApiKey(keyId: \\\"key_prod_secret_881\\\") { id secretKey scopes expiresAt } }\"}",
+  "corrected_code": "package graph\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"myapp/auth\"\n\t\"myapp/graph/model\"\n)\n\nfunc (r *QueryResolver) OrganizationApiKey(ctx context.Context, keyID string) (*model.APIKey, error) {\n\tcallerOrgID := auth.OrgIDFromContext(ctx)\n\tif callerOrgID == \"\" {\n\t\treturn nil, errors.New(\"organization context missing\")\n\t}\n\n\tkey, err := r.APIKeyStore.FindKeyByID(ctx, keyID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tif key.OrganizationID != callerOrgID {\n\t\treturn nil, errors.New(\"forbidden: api key does not belong to your organization\")\n\t}\n\n\treturn key, nil\n}\n",
+  "severity": "CRITICAL",
+  "confidence": 0.94
+}

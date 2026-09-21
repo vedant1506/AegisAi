@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Exams::SubmissionsController < ApplicationController\n  before_action :authenticate_student!\n\n  def show\n    # Implicit primary key lookup without scoping to current_student\n    @submission = ExamSubmission.find(params[:id])\n\n    render json: {\n      student_name: @submission.student.full_name,\n      exam_id: @submission.exam_id,\n      answers: @submission.answer_payload,\n      instructor_feedback: @submission.private_feedback,\n      score: @submission.final_score\n    }\n  end\nend",
+  "diagnosis": "The show action queries ExamSubmission solely by id without scoping to current_student. Any enrolled student can inspect other candidates' exam submissions, question answers, and confidential instructor feedback.",
+  "exploit_request": "GET /api/v1/exams/submissions/10492 HTTP/1.1\nHost: learn.university-portal.edu\nAuthorization: Bearer student_bearer_9410\nAccept: application/json",
+  "corrected_code": "class Exams::SubmissionsController < ApplicationController\n  before_action :authenticate_student!\n\n  def show\n    @submission = current_student.exam_submissions.find(params[:id])\n\n    render json: {\n      student_name: @submission.student.full_name,\n      exam_id: @submission.exam_id,\n      answers: @submission.answer_payload,\n      instructor_feedback: @submission.private_feedback,\n      score: @submission.final_score\n    }\n  end\nend",
+  "severity": "MEDIUM",
+  "confidence": 0.88
+}

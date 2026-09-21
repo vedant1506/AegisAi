@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ConfidentialMessageNode(DjangoObjectType):\n    class Meta:\n        model = ConfidentialMessage\n        filter_fields = ['is_read']\n        interfaces = (graphene.relay.Node,)\n\n    @classmethod\n    def get_node(cls, info, id):\n        return ConfidentialMessage.objects.get(pk=id)",
+  "diagnosis": "The Relay Node get_node method resolves ConfidentialMessage records by primary key directly from Relay global IDs. Because it does not verify that info.context.user matches the message's sender or recipient, any user who crafts or guesses Relay global IDs can query private direct messages.",
+  "exploit_request": "POST /graphql/ HTTP/1.1\nHost: chat.corp.internal\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"query\": \"query { node(id: \\\"Q29uZmlkZW50aWFsTWVzc2FnZTo5MTI=\\\") { ... on ConfidentialMessageNode { sender { username } body } } }\"}",
+  "corrected_code": "class ConfidentialMessageNode(DjangoObjectType):\n    class Meta:\n        model = ConfidentialMessage\n        filter_fields = ['is_read']\n        interfaces = (graphene.relay.Node,)\n\n    @classmethod\n    def get_node(cls, info, id):\n        user = info.context.user\n        if not user.is_authenticated:\n            return None\n        return ConfidentialMessage.objects.filter(\n            Q(sender=user) | Q(recipient=user),\n            pk=id\n        ).first()",
+  "severity": "MEDIUM",
+  "confidence": 0.92
+}

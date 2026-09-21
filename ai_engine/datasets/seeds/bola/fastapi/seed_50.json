@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.delete(\"/customers/{customer_id}/purge\", status_code=202)\ndef schedule_customer_purge(\n    customer_id: str,\n    background_tasks: BackgroundTasks,\n    user: User = Depends(get_current_user)\n):\n    background_tasks.add_task(purge_customer_records_task, customer_id)\n    return {\"status\": \"accepted\", \"message\": \"Purge job scheduled\"}",
+  "diagnosis": "The route receives customer_id from the path and dispatches an asynchronous background worker task to irrevocably purge the customer's account records. It omits checking whether customer_id matches user.customer_id. Any authenticated user can trigger the asynchronous deletion of another customer's complete account data.",
+  "exploit_request": "DELETE /customers/cust_88291/purge HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "@router.delete(\"/customers/{customer_id}/purge\", status_code=202)\ndef schedule_customer_purge(\n    customer_id: str,\n    background_tasks: BackgroundTasks,\n    user: User = Depends(get_current_user)\n):\n    if customer_id != user.customer_id:\n        raise HTTPException(status_code=403, detail=\"Not authorized to purge another customer's records\")\n\n    background_tasks.add_task(purge_customer_records_task, customer_id)\n    return {\"status\": \"accepted\", \"message\": \"Purge job scheduled\"}",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

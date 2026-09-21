@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get(\"/features/bootstrap/{workspace_id}\")\nasync def bootstrap_workspace_flags(\n    workspace_id: str,\n    current_user: User = Depends(get_current_user)\n):\n    context = (\n        Context.builder(workspace_id)\n        .kind(\"workspace\")\n        .set(\"workspace_id\", workspace_id)\n        .build()\n    )\n    all_flags = ldclient.get().all_flags_state(context)\n    return {\"workspace_id\": workspace_id, \"flags\": all_flags.to_json_dict()}",
+  "diagnosis": "The bootstrap flags endpoint evaluates and returns all feature flag values for workspace_id passed in the path. It does not verify that current_user is a member of that workspace, exposing confidential feature rollouts, experimental endpoints, and security toggles of other organizations.",
+  "exploit_request": "GET /features/bootstrap/ws_enterprise_target_99 HTTP/1.1\nHost: app.portal.com\nAuthorization: Bearer <unauthorized_jwt>",
+  "corrected_code": "@router.get(\"/features/bootstrap/{workspace_id}\")\nasync def bootstrap_workspace_flags(\n    workspace_id: str,\n    current_user: User = Depends(get_current_user)\n):\n    if workspace_id not in current_user.workspace_memberships:\n        raise HTTPException(status_code=403, detail=\"Forbidden: access to target workspace flags denied\")\n\n    context = (\n        Context.builder(workspace_id)\n        .kind(\"workspace\")\n        .set(\"workspace_id\", workspace_id)\n        .build()\n    )\n    all_flags = ldclient.get().all_flags_state(context)\n    return {\"workspace_id\": workspace_id, \"flags\": all_flags.to_json_dict()}",
+  "severity": "LOW",
+  "confidence": 0.86
+}

@@ -22,7 +22,7 @@ services:
     container_name: aegis_juice_shop
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${JUICE_SHOP_PORT:-3000}:3000"
     networks:
       - dast_target_net
     environment:

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.post(\"/search/collections/{collection_id}/reindex\")\ndef trigger_collection_reindex(\n    collection_id: str,\n    user: User = Depends(get_current_user)\n):\n    reindex_opensearch_collection.apply_async(args=[collection_id])\n    return {\"status\": \"reindexing\", \"collection_id\": collection_id}",
+  "diagnosis": "The route accepts collection_id from the path and dispatches a Celery background task using apply_async. It does not verify that the search collection belongs to the caller's tenant account, allowing any user to trigger resource-intensive reindexing loops against other tenants' Elasticsearch or OpenSearch clusters.",
+  "exploit_request": "POST /search/collections/coll_acme_prod/reindex HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "@router.post(\"/search/collections/{collection_id}/reindex\")\ndef trigger_collection_reindex(\n    collection_id: str,\n    user: User = Depends(get_current_user),\n    db: Session = Depends(get_db)\n):\n    collection = db.query(SearchCollection).filter(\n        SearchCollection.id == collection_id,\n        SearchCollection.account_id == user.account_id\n    ).first()\n    if not collection:\n        raise HTTPException(status_code=404, detail=\"Search collection not found\")\n\n    reindex_opensearch_collection.apply_async(args=[collection_id])\n    return {\"status\": \"reindexing\", \"collection_id\": collection_id}",
+  "severity": "LOW",
+  "confidence": 0.82
+}

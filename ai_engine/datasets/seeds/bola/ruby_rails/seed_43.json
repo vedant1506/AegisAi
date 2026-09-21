@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class TaxReturns::AttachmentsController < ApplicationController\n  before_action :authenticate_taxpayer!\n\n  def download\n    # BOLA: Fetches ActiveStorage::Attachment by primary key id directly\n    # without checking if attachment.record belongs to current_taxpayer\n    attachment = ActiveStorage::Attachment.find(params[:id])\n\n    send_data attachment.download,\n              filename: attachment.filename.to_s,\n              content_type: attachment.content_type,\n              disposition: 'attachment'\n  end\nend",
+  "diagnosis": "The download action fetches ActiveStorage::Attachment directly by primary key without checking if the parent record (TaxReturn) belongs to current_taxpayer. Any authenticated taxpayer can download Form 1040s and W-2 statements containing Social Security Numbers and income filings belonging to any other citizen by altering the attachment ID.",
+  "exploit_request": "GET /api/tax_returns/attachments/att_99182/download HTTP/1.1\nHost: portal.internal-revenue.gov\nAuthorization: Bearer taxpayer_session_701\nAccept: application/pdf",
+  "corrected_code": "class TaxReturns::AttachmentsController < ApplicationController\n  before_action :authenticate_taxpayer!\n\n  def download\n    tax_return = current_taxpayer.tax_returns.find(params[:tax_return_id])\n    attachment = tax_return.tax_document_attachment\n\n    send_data attachment.download,\n              filename: attachment.filename.to_s,\n              content_type: attachment.content_type,\n              disposition: 'attachment'\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

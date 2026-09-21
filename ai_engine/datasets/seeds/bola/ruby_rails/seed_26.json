@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class TelehealthRoomChannel < ApplicationCable::Channel\n  def subscribed\n    # Fails to verify that current_user is the appointed physician or patient\n    stream_from \"room_#{params[:room_id]}\"\n  end\nend",
+  "diagnosis": "TelehealthRoomChannel establishes a WebSocket broadcast feed using unvalidated room_id parameters. Malicious users can eavesdrop on live medical consultations, chat transcripts, and biometric data exchanged between doctors and patients.",
+  "exploit_request": "{\"command\":\"subscribe\",\"identifier\":\"{\\\"channel\\\":\\\"TelehealthRoomChannel\\\",\\\"room_id\\\":\\\"room_consult_8820\\\"}\"}",
+  "corrected_code": "class TelehealthRoomChannel < ApplicationCable::Channel\n  def subscribed\n    consultation = Consultation.find_by(room_token: params[:room_id])\n    unless consultation && (consultation.doctor_id == current_user.id || consultation.patient_id == current_user.id)\n      reject\n      return\n    end\n\n    stream_from \"room_#{consultation.room_token}\"\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

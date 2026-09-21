@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\n\n// routes/channels.php\nBroadcast::channel('home.{homeId}.sensors', function (User $user, int $homeId) {\n    // Insecure presence callback: merely checks that the user is logged in\n    return !is_null($user);\n});",
+  "diagnosis": "The smart home alarm and motion sensor broadcasting channel allows any logged-in user to subscribe to any home's sensor feed. Intruders with standard customer accounts can monitor motion events, door lock states, and camera trigger alerts of target residences by subscribing to their home IDs.",
+  "exploit_request": "POST /broadcasting/auth HTTP/1.1\nHost: ws.guardiashield-iot.com\nAuthorization: Bearer 37|iotclient776655\nContent-Type: application/json\n\n{\"socket_id\": \"55102.1192\", \"channel_name\": \"presence-home.3910.sensors\"}",
+  "corrected_code": "use Illuminate\\Support\\Facades\\Broadcast;\nuse App\\Models\\User;\n\n// routes/channels.php\nBroadcast::channel('home.{homeId}.sensors', function (User $user, int $homeId) {\n    return $user->homes()\n        ->where('homes.id', $homeId)\n        ->exists();\n});",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

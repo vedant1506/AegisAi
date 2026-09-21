@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Fleet::VehicleRoutesController < ApplicationController\n  before_action :authenticate_contractor!\n\n  def export_gpx\n    # Route log resolved by tracking UUID without company boundary verification\n    route_log = VehicleRouteLog.find_by!(tracking_uuid: params[:tracking_uuid])\n\n    send_data route_log.generate_gpx_payload,\n              filename: \"route-#{route_log.tracking_uuid}.gpx\",\n              type: 'application/gpx+xml',\n              disposition: 'attachment'\n  end\nend",
+  "diagnosis": "The export_gpx action loads vehicle telemetry by tracking_uuid without restricting to current_carrier or current_contractor. External contractors can track competitors' delivery truck routes, driver stopovers, and customer drop-off locations.",
+  "exploit_request": "GET /api/v2/fleet/routes/d290f1ee-6c54-4b01-90e6-d701748f0851/export.gpx HTTP/1.1\nHost: logistics.supplychain-tracker.com\nAuthorization: Bearer contractor_api_token_48\nAccept: application/gpx+xml",
+  "corrected_code": "class Fleet::VehicleRoutesController < ApplicationController\n  before_action :authenticate_contractor!\n\n  def export_gpx\n    route_log = current_contractor.company.vehicle_route_logs.find_by!(tracking_uuid: params[:tracking_uuid])\n\n    send_data route_log.generate_gpx_payload,\n              filename: \"route-#{route_log.tracking_uuid}.gpx\",\n              type: 'application/gpx+xml',\n              disposition: 'attachment'\n  end\nend",
+  "severity": "MEDIUM",
+  "confidence": 0.85
+}

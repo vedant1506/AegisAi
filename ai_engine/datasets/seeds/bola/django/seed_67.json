@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\ndef update_leave_request(request, request_id):\n    leave_req = get_object_or_404(LeaveRequest, id=request_id)\n    if request.method == 'POST':\n        form = LeaveRequestForm(request.POST, instance=leave_req)\n        if form.is_valid():\n            form.save()\n            return redirect('leave_list')\n    else:\n        form = LeaveRequestForm(instance=leave_req)\n    return render(request, 'hr/edit_leave.html', {'form': form, 'leave': leave_req})",
+  "diagnosis": "The function-based view retrieves LeaveRequest by request_id from the URL pattern and binds it to a ModelForm. It fails to check if leave_req.employee == request.user, allowing any authenticated employee to view and edit other colleagues' leave dates and medical reasons.",
+  "exploit_request": "POST /hr/leave/requests/312/edit/ HTTP/1.1\nHost: internal.company.com\nCookie: sessionid=employee_session\nContent-Type: application/x-www-form-urlencoded\n\nstart_date=2026-10-01&end_date=2026-10-15&reason=Extended+vacation",
+  "corrected_code": "@login_required\ndef update_leave_request(request, request_id):\n    leave_req = get_object_or_404(LeaveRequest, id=request_id, employee=request.user)\n    if request.method == 'POST':\n        form = LeaveRequestForm(request.POST, instance=leave_req)\n        if form.is_valid():\n            form.save()\n            return redirect('leave_list')\n    else:\n        form = LeaveRequestForm(instance=leave_req)\n    return render(request, 'hr/edit_leave.html', {'form': form, 'leave': leave_req})",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

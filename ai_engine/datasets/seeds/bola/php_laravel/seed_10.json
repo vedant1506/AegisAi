@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\AssignmentSubmission;\n\nclass SubmissionPolicy\n{\n    public function grade(User $user, AssignmentSubmission $submission): bool\n    {\n        // Verifies the user has the teacher role, but does not check teacher course enrollment\n        return $user->role === 'instructor';\n    }\n}",
+  "diagnosis": "The SubmissionPolicy grade method allows any instructor to grade assignments without confirming that the instructor is formally assigned to teach the course to which the assignment belongs. A teacher in department A can assign arbitrary grades or remarks to students in an unrelated department B.",
+  "exploit_request": "POST /api/lms/submissions/5012/grade HTTP/1.1\nHost: canvas.university-portal.edu\nAuthorization: Bearer 12|instructorkey9876543210\nContent-Type: application/json\n\n{\"score\": 100, \"feedback\": \"Overridden grade\"}",
+  "corrected_code": "namespace App\\Policies;\n\nuse App\\Models\\User;\nuse App\\Models\\AssignmentSubmission;\n\nclass SubmissionPolicy\n{\n    public function grade(User $user, AssignmentSubmission $submission): bool\n    {\n        return $user->role === 'instructor'\n            && $user->teachingCourses()->where('courses.id', $submission->assignment->course_id)->exists();\n    }\n}",
+  "severity": "LOW",
+  "confidence": 0.82
+}

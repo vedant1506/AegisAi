@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@Controller('api/workspaces')\n@UseGuards(JwtAuthGuard)\nexport class WorkspaceController {\n  constructor(private readonly workspaceService: WorkspaceService) {}\n\n  @Patch(':workspaceId/billing')\n  async updateBillingPlan(\n    @Param('workspaceId') workspaceId: string,\n    @Body() updateDto: UpdateBillingPlanDto,\n  ) {\n    return await this.workspaceService.updateSubscriptionPlan(workspaceId, updateDto.planId);\n  }\n}",
+  "diagnosis": "The controller relies solely on a global JwtAuthGuard for authentication but fails to verify whether the authenticated user has administrative privileges or ownership within the target workspace. Any valid user can change subscription plans or downgrade billing for other organizations by providing their workspace ID in the path.",
+  "exploit_request": "PATCH /api/workspaces/ws_987410/billing HTTP/1.1\nHost: api.saasplatform.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"planId\": \"tier_enterprise_free_trial\"}",
+  "corrected_code": "@Controller('api/workspaces')\n@UseGuards(JwtAuthGuard)\nexport class WorkspaceController {\n  constructor(private readonly workspaceService: WorkspaceService) {}\n\n  @Patch(':workspaceId/billing')\n  async updateBillingPlan(\n    @Param('workspaceId') workspaceId: string,\n    @Body() updateDto: UpdateBillingPlanDto,\n    @Req() req: AuthenticatedRequest,\n  ) {\n    const isOwner = await this.workspaceService.checkUserIsAdmin(workspaceId, req.user.id);\n    if (!isOwner) throw new ForbiddenException('You do not have permission to manage this workspace billing');\n    return await this.workspaceService.updateSubscriptionPlan(workspaceId, updateDto.planId);\n  }\n}",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

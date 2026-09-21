@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\ndef publish_wagtail_page_view(request, page_id):\n    page = get_object_or_404(Page, id=page_id).specific\n    if not request.user.is_staff:\n        raise PermissionDenied(\"Staff access required.\")\n    revision = page.save_revision()\n    revision.publish()\n    return JsonResponse({'status': 'published', 'page_id': page.id, 'title': page.title})",
+  "diagnosis": "The view checks only request.user.is_staff before publishing a page revision. It omits Wagtail's object-level permission check page.permissions_for_user(request.user).can_publish(), allowing any staff member to publish edits to protected tree sections outside their editorial jurisdiction.",
+  "exploit_request": "POST /cms-custom/pages/102/publish/ HTTP/1.1\nHost: wagtail.example.com\nCookie: sessionid=junior_editor_session",
+  "corrected_code": "@login_required\ndef publish_wagtail_page_view(request, page_id):\n    page = get_object_or_404(Page, id=page_id).specific\n    page_perms = page.permissions_for_user(request.user)\n    if not page_perms.can_publish():\n        raise PermissionDenied(\"You do not have permission to publish this page.\")\n    revision = page.save_revision()\n    revision.publish()\n    return JsonResponse({'status': 'published', 'page_id': page.id, 'title': page.title})",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

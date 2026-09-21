@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "export const apiKeyRouter = router({\n  revokeApiKey: protectedProcedure\n    .input(z.object({ keyId: z.string() }))\n    .mutation(async ({ input, ctx }) => {\n      const deleted = await ctx.db.delete(apiKeysTable)\n        .where(eq(apiKeysTable.id, input.keyId))\n        .returning();\n      if (!deleted.length) throw new TRPCError({ code: 'NOT_FOUND' });\n      return { success: true };\n    }),\n});",
+  "diagnosis": "The tRPC mutation revokes an API key matching input.keyId without qualifying the deletion query with ctx.user.orgId. Any authenticated organization member can delete API credentials belonging to other organizations.",
+  "exploit_request": "POST /trpc/apiKey.revokeApiKey HTTP/1.1\nHost: api.devhub.com\nContent-Type: application/json\nAuthorization: Bearer <member_jwt>\n\n{\"keyId\": \"key_prod_live_890123\"}",
+  "corrected_code": "export const apiKeyRouter = router({\n  revokeApiKey: protectedProcedure\n    .input(z.object({ keyId: z.string() }))\n    .mutation(async ({ input, ctx }) => {\n      const deleted = await ctx.db.delete(apiKeysTable)\n        .where(and(eq(apiKeysTable.id, input.keyId), eq(apiKeysTable.orgId, ctx.user.orgId)))\n        .returning();\n      if (!deleted.length) throw new TRPCError({ code: 'FORBIDDEN', message: 'API key not found or belongs to another organization' });\n      return { success: true };\n    }),\n});",
+  "severity": "HIGH",
+  "confidence": 0.97
+}

@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.get('/api/profile/details/:accountId', async (req, res) => {\n  const details = await Profile.findOne({ account: req.params.accountId });\n  res.json(details);\n});",
+  "diagnosis": "The endpoint looks up profile details using a secondary 'accountId' parameter from the URL, bypassing authorization if the attacker guesses valid account IDs.",
+  "exploit_request": "GET /api/profile/details/ACCT-999 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.get('/api/profile/details/:accountId', async (req, res) => {\n  if (req.params.accountId !== req.user.accountId) return res.status(403).send('Forbidden');\n  const details = await Profile.findOne({ account: req.params.accountId });\n  res.json(details);\n});"
+}

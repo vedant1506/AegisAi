@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@admin.action(description=\"Cancel partner payouts\")\ndef cancel_selected_payouts(modeladmin, request, queryset):\n    payout_ids = request.POST.getlist('_selected_action')\n    cancelled_count = PayoutBatch.objects.filter(id__in=payout_ids).update(status='cancelled')\n    modeladmin.message_user(request, f\"{cancelled_count} payouts cancelled.\")",
+  "diagnosis": "The admin action directly reads _selected_action from POST data and calls PayoutBatch.objects.filter(id__in=payout_ids) rather than operating on the pre-filtered queryset passed by Django admin. Staff restricted to a specific franchise can cancel payout records belonging to any other franchise.",
+  "exploit_request": "POST /admin/billing/payoutbatch/ HTTP/1.1\nHost: admin.example.com\nCookie: sessionid=partner_admin_session\nContent-Type: application/x-www-form-urlencoded\n\naction=cancel_selected_payouts&_selected_action=101&_selected_action=102",
+  "corrected_code": "@admin.action(description=\"Cancel partner payouts\")\ndef cancel_selected_payouts(modeladmin, request, queryset):\n    cancelled_count = queryset.filter(status='pending').update(status='cancelled')\n    modeladmin.message_user(request, f\"{cancelled_count} payouts cancelled.\")",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

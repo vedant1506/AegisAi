@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "# app/views/orders/show.json.jbuilder\njson.extract! @order, :id, :order_number, :delivery_status, :created_at\n\n# Association leakage: exposes patient medical prescriptions and national IDs to delivery couriers\njson.prescriptions @order.prescriptions do |prescription|\n  json.id prescription.id\n  json.medication_name prescription.medication_name\n  json.dosage prescription.dosage\n  json.patient_national_id prescription.patient_national_id\nend",
+  "diagnosis": "The Jbuilder template renders full prescription details on delivery orders without scoping visibility to medical staff or the patient. Delivery courier accounts viewing package fulfillment routes receive sensitive patient psychiatric prescriptions and national identity numbers.",
+  "exploit_request": "GET /api/pharmacy/orders/ord_5521.json HTTP/1.1\nHost: logistics.e-pharmacy.health\nAuthorization: Bearer courier_access_token_881\nAccept: application/json",
+  "corrected_code": "# app/views/orders/show.json.jbuilder\njson.extract! @order, :id, :order_number, :delivery_status, :created_at\n\nif current_user.physician? || current_user.id == @order.patient_user_id\n  json.prescriptions @order.prescriptions do |prescription|\n    json.id prescription.id\n    json.medication_name prescription.medication_name\n    json.dosage prescription.dosage\n    json.patient_national_id prescription.patient_national_id\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

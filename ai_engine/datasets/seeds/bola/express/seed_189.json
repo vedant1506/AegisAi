@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "export const fileRouter = router({\n  getFileDetails: protectedProcedure\n    .input(z.object({ fileId: z.string().uuid() }))\n    .query(async ({ input, ctx }) => {\n      const file = await ctx.prisma.storedFile.findUnique({\n        where: { id: input.fileId },\n      });\n      if (!file) throw new TRPCError({ code: 'NOT_FOUND', message: 'File not found' });\n      return file;\n    }),\n});",
+  "diagnosis": "The procedure is protected by authentication (protectedProcedure) and validates input with Zod, but queries the file strictly by its UUID without checking where: { id: input.fileId, ownerId: ctx.user.id }. Any authenticated user can inspect private file metadata, S3 storage keys, and file sizes across accounts.",
+  "exploit_request": "POST /trpc/file.getFileDetails?batch=1 HTTP/1.1\nHost: drive.cloudapp.io\nContent-Type: application/json\nCookie: session_token=attacker_session\n\n{\"0\": {\"fileId\": \"6c84fb90-12ce-4dfb-9281-a901f481c002\"}}",
+  "corrected_code": "export const fileRouter = router({\n  getFileDetails: protectedProcedure\n    .input(z.object({ fileId: z.string().uuid() }))\n    .query(async ({ input, ctx }) => {\n      const file = await ctx.prisma.storedFile.findFirst({\n        where: { id: input.fileId, ownerId: ctx.user.id },\n      });\n      if (!file) throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied to target file' });\n      return file;\n    }),\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.96
+}

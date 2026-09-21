@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.post('/api/sessions/:sessionId/blacklist', authenticateUser, async (req, res) => {\n  const { sessionId } = req.params;\n\n  const exists = await redisClient.exists(`refresh_session:${sessionId}`);\n  if (!exists) {\n    return res.status(404).json({ error: 'Session not found' });\n  }\n\n  await redisClient.del(`refresh_session:${sessionId}`);\n  res.json({ message: 'Session successfully revoked', sessionId });\n});",
+  "diagnosis": "The logout/invalidation route deletes refresh_session:${sessionId} directly from Redis based on URL path parameters. Although authenticateUser runs, the code does not verify that the target sessionId belongs to req.user.id. Any logged-in user can terminate refresh sessions of arbitrary users by brute-forcing or guessing session IDs.",
+  "exploit_request": "POST /api/sessions/sess_user_991823/blacklist HTTP/1.1\nHost: auth.portal.io\nAuthorization: Bearer <attacker_jwt>\nContent-Length: 0",
+  "corrected_code": "app.post('/api/sessions/:sessionId/blacklist', authenticateUser, async (req, res) => {\n  const { sessionId } = req.params;\n\n  const sessionData = await redisClient.get(`refresh_session:${sessionId}`);\n  if (!sessionData) {\n    return res.status(404).json({ error: 'Session not found' });\n  }\n\n  const session = JSON.parse(sessionData);\n  if (session.userId !== req.user.id) {\n    return res.status(403).json({ error: 'Forbidden: you cannot revoke another user session' });\n  }\n\n  await redisClient.del(`refresh_session:${sessionId}`);\n  res.json({ message: 'Session successfully revoked', sessionId });\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.91
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ProjectViewSet(viewsets.ModelViewSet):\n    queryset = Project.objects.all()\n    serializer_class = ProjectSerializer\n    permission_classes = [permissions.IsAuthenticated, IsProjectMember]\n\n    @action(detail=True, methods=['post'], url_path='archive')\n    def archive_project(self, request, pk=None):\n        project = Project.objects.get(pk=pk)\n        project.is_archived = True\n        project.save(update_fields=['is_archived'])\n        return Response({'status': 'archived'})",
+  "diagnosis": "The custom action directly retrieves the Project using Project.objects.get(pk=pk) instead of calling self.get_object(). This bypasses DRF's object-level permission checks configured in permission_classes, allowing any authenticated user to archive projects they do not belong to.",
+  "exploit_request": "POST /api/v1/projects/881/archive/ HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "class ProjectViewSet(viewsets.ModelViewSet):\n    queryset = Project.objects.all()\n    serializer_class = ProjectSerializer\n    permission_classes = [permissions.IsAuthenticated, IsProjectMember]\n\n    @action(detail=True, methods=['post'], url_path='archive')\n    def archive_project(self, request, pk=None):\n        project = self.get_object()\n        project.is_archived = True\n        project.save(update_fields=['is_archived'])\n        return Response({'status': 'archived'})",
+  "severity": "HIGH",
+  "confidence": 0.97
+}

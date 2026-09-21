@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class HasOrganizationBillingPrivilege(permissions.BasePermission):\n    def has_permission(self, request, view):\n        return request.user.is_authenticated and request.user.has_billing_privileges\n\nclass OrganizationSubscriptionDetailView(generics.RetrieveUpdateAPIView):\n    queryset = OrganizationSubscription.objects.all()\n    serializer_class = SubscriptionSerializer\n    permission_classes = [HasOrganizationBillingPrivilege]",
+  "diagnosis": "HasOrganizationBillingPrivilege only defines has_permission(), checking if the user holds billing privileges within their own account. It omits has_object_permission() and the view uses an unscoped queryset, allowing any user with billing privileges in one organization to view and modify subscription tiers for any other organization.",
+  "exploit_request": "GET /api/billing/subscriptions/883/ HTTP/1.1\nHost: billing.saas.example\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "class HasOrganizationBillingPrivilege(permissions.BasePermission):\n    def has_permission(self, request, view):\n        return request.user.is_authenticated and request.user.has_billing_privileges\n\n    def has_object_permission(self, request, view, obj):\n        return obj.organization == request.user.organization\n\nclass OrganizationSubscriptionDetailView(generics.RetrieveUpdateAPIView):\n    serializer_class = SubscriptionSerializer\n    permission_classes = [HasOrganizationBillingPrivilege]\n\n    def get_queryset(self):\n        return OrganizationSubscription.objects.filter(organization=self.request.user.organization)",
+  "severity": "HIGH",
+  "confidence": 0.92
+}

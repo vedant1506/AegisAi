@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ClinicalEntriesController < ApplicationController\n  before_action :authenticate_practitioner!\n\n  def create\n    # Permitting patient_id in strong parameters allows inserting medical entries onto arbitrary patients\n    @entry = ClinicalEntry.new(entry_params)\n    @entry.recorded_by = current_practitioner\n    @entry.save!\n    render json: @entry, status: :created\n  end\n\n  private\n\n  def entry_params\n    params.require(:clinical_entry).permit(:icd_code, :notes, :dosage, :patient_id)\n  end\nend",
+  "diagnosis": "Permitting patient_id in strong params allows practitioners to inject diagnoses and prescriptions into patient records with whom they have no clinical relationship, corrupting medical records across unrelated hospital wards.",
+  "exploit_request": "POST /api/ehr/entries HTTP/1.1\nHost: ehr.healthnetwork.org\nAuthorization: Bearer practitioner_bearer_72\nContent-Type: application/json\n\n{\"clinical_entry\": {\"icd_code\": \"F32.9\", \"notes\": \"Severe depressive episode\", \"patient_id\": 4091}}",
+  "corrected_code": "class ClinicalEntriesController < ApplicationController\n  before_action :authenticate_practitioner!\n\n  def create\n    patient = current_practitioner.assigned_patients.find(params[:patient_id])\n    @entry = patient.clinical_entries.build(entry_params)\n    @entry.recorded_by = current_practitioner\n    @entry.save!\n    render json: @entry, status: :created\n  end\n\n  private\n\n  def entry_params\n    params.require(:clinical_entry).permit(:icd_code, :notes, :dosage)\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

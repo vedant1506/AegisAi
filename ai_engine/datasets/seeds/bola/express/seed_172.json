@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const securityResolvers = {\n  Subscription: {\n    securityAlarmTriggered: {\n      subscribe: withFilter(\n        () => pubsub.asyncIterator(['ALARM_BROADCAST']),\n        (payload, args) => payload.propertyId === args.propertyId\n      ),\n      resolve: (payload) => payload.alarmEvent\n    }\n  }\n};",
+  "diagnosis": "The subscription filters alarm events purely by propertyId. It lacks validation against context.user's registered property portfolio, allowing unauthorized users to stream real-time intrusion alarms, window sensor trips, and panic button triggers across properties.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: iot.smarthomehub.net\nUpgrade: websocket\nSec-WebSocket-Protocol: graphql-ws\n\n{\"type\": \"start\", \"id\": \"alarm_sub\", \"payload\": {\"query\": \"subscription { securityAlarmTriggered(propertyId: \\\"prop_718290\\\") { sensorName zone timestamp } }\"}}",
+  "corrected_code": "const securityResolvers = {\n  Subscription: {\n    securityAlarmTriggered: {\n      subscribe: withFilter(\n        () => pubsub.asyncIterator(['ALARM_BROADCAST']),\n        async (payload, args, context) => {\n          if (!context.user || payload.propertyId !== args.propertyId) return false;\n          const property = await Property.findOne({ where: { id: args.propertyId, ownerId: context.user.id } });\n          return !!property;\n        }\n      ),\n      resolve: (payload) => payload.alarmEvent\n    }\n  }\n};",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

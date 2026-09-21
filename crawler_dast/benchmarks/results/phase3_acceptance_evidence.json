@@ -1,0 +1,205 @@
+{
+  "timestamp": "2026-09-18T05:02:22.999171+00:00",
+  "step1_audit": {
+    "playwright_bot.py": {
+      "exists": true,
+      "size_bytes": 25646,
+      "path": "C:\\Users\\shaha\\.gemini\\antigravity-ide\\scratch\\AegisAi\\crawler_dast\\src\\playwright_bot.py"
+    },
+    "token_manager.py": {
+      "exists": true,
+      "size_bytes": 10442,
+      "path": "C:\\Users\\shaha\\.gemini\\antigravity-ide\\scratch\\AegisAi\\crawler_dast\\src\\token_manager.py"
+    },
+    "models.py": {
+      "exists": true,
+      "size_bytes": 10122,
+      "path": "C:\\Users\\shaha\\.gemini\\antigravity-ide\\scratch\\AegisAi\\crawler_dast\\src\\models.py"
+    },
+    "exploit_runner.py": {
+      "exists": true,
+      "size_bytes": 8742,
+      "path": "C:\\Users\\shaha\\.gemini\\antigravity-ide\\scratch\\AegisAi\\crawler_dast\\src\\exploit_runner.py"
+    },
+    "verifier.py": {
+      "exists": true,
+      "size_bytes": 17549,
+      "path": "C:\\Users\\shaha\\.gemini\\antigravity-ide\\scratch\\AegisAi\\crawler_dast\\src\\verifier.py"
+    },
+    "false_positive_filter.py": {
+      "exists": true,
+      "size_bytes": 7523,
+      "path": "C:\\Users\\shaha\\.gemini\\antigravity-ide\\scratch\\AegisAi\\crawler_dast\\src\\false_positive_filter.py"
+    },
+    "scan_router.py": {
+      "exists": true,
+      "size_bytes": 7942,
+      "path": "C:\\Users\\shaha\\.gemini\\antigravity-ide\\scratch\\AegisAi\\backend\\app\\api\\scan_router.py"
+    },
+    "state_graph.py": {
+      "exists": true,
+      "size_bytes": 15171,
+      "path": "C:\\Users\\shaha\\.gemini\\antigravity-ide\\scratch\\AegisAi\\ai_engine\\multi_agent\\state_graph.py"
+    }
+  },
+  "step2_crawler": {
+    "execution_time_seconds": 17.12,
+    "target_url": "http://localhost:3000",
+    "is_reachable": true,
+    "latency_ms": 209.13,
+    "routes_count": 6,
+    "sample_routes": [
+      "",
+      "/#/search",
+      "/#/score-board",
+      "/#/recycle",
+      "/#/contact",
+      "/#/about"
+    ],
+    "apis_count": 10,
+    "sample_apis": [
+      "[GET] http://localhost:3000/socket.io/",
+      "[GET] http://localhost:3000/rest/admin/application-version",
+      "[GET] http://localhost:3000/rest/admin/application-configuration",
+      "[GET] http://localhost:3000/assets/i18n/en.json",
+      "[POST] http://localhost:3000/socket.io/",
+      "[GET] http://localhost:3000/rest/continue-code",
+      "[GET] http://localhost:3000/rest/languages",
+      "[GET] http://localhost:3000/rest/user/whoami"
+    ],
+    "forms_count": 2,
+    "parameters_count": 30,
+    "has_jwt": false,
+    "jwt_subject": null,
+    "active_sessions": [
+      "default"
+    ],
+    "json_size_bytes": 23277,
+    "schema_roundtrip_ok": true
+  },
+  "step3_handoff": {
+    "total_endpoint_schemas": 10,
+    "backend_validated_count": 10,
+    "validation_errors": [],
+    "ai_context_valid": true,
+    "sample_validated_schema": {
+      "url": "http://localhost:3000/socket.io/",
+      "method": "GET",
+      "headers": {
+        "sec-ch-ua-platform": "\"Windows\"",
+        "referer": "http://localhost:3000/",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 (AegisAI Autonomous VAPT Bot/1.0)",
+        "accept": "*/*",
+        "sec-ch-ua": "\"Not=A?Brand\";v=\"99\", \"HeadlessChrome\";v=\"151\", \"Chromium\";v=\"151\"",
+        "sec-ch-ua-mobile": "?0"
+      },
+      "tokens": {
+        "jwt": null,
+        "session_cookie": null,
+        "api_key": null,
+        "csrf_token": null
+      },
+      "body_schema": null,
+      "discovered_at": "2026-09-18 05:00:26.570053"
+    }
+  },
+  "step4_test_spec_ai": {
+    "ollama_reachable": false,
+    "ollama_error": "ConnectError: All connection attempts failed",
+    "real_ai_status": "OFFLINE_UNAVAILABLE",
+    "controlled_specs_valid": true,
+    "controlled_spec_types": [
+      "BOLA",
+      "SQLI",
+      "XSS"
+    ]
+  },
+  "step5_httpx": {
+    "boundary_enforcement_passed": true,
+    "real_dispatch_status": 200,
+    "real_dispatch_url": "http://localhost:3000/rest/products/search?q=apple",
+    "response_duration_ms": 126.64,
+    "error_handling_status": 0
+  },
+  "step6_dual_session_bola": {
+    "victim_email": "admin@juice-sh.op",
+    "victim_bid": 1,
+    "attacker_email": "phase3_attacker@test.com",
+    "attacker_bid": 7,
+    "cross_resource_url": "http://localhost:3000/rest/basket/1",
+    "http_status": 200,
+    "reproducible": true,
+    "data_leak_confirmed": true,
+    "leaked_userid": 1,
+    "raw_evidence_body_preview": "{\"status\":\"success\",\"data\":{\"id\":1,\"coupon\":null,\"UserId\":1,\"createdAt\":\"2026-09-18T04:38:31.103Z\",\"updatedAt\":\"2026-09-18T04:38:31.103Z\",\"Products\":[{\"id\":1,\"name\":\"Apple Juice (1000ml)\",\"description\":\"The all-time classic.\",\"price\":1.99,\"deluxePrice\":0.99,\"image\":\"apple_juice.jpg\",\"createdAt\":\"202"
+  },
+  "step7_verification": {
+    "BOLA": {
+      "status": "VERIFIED",
+      "confidence": 0.95,
+      "is_confirmed": true,
+      "reason": "Cross-tenant IDOR confirmed: victim attributes ['Products', 'UserId', 'id'] exposed."
+    },
+    "SQLI": {
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.1,
+      "is_confirmed": false,
+      "reason": "Payload did not trigger detectable database error or syntax leak."
+    },
+    "SOFT_404": {
+      "status": "FALSE_POSITIVE",
+      "is_false_positive": true,
+      "reason": "Soft 404: '404 not found' detected in response body."
+    },
+    "STATIC_ASSET": {
+      "status": "FALSE_POSITIVE",
+      "is_false_positive": true,
+      "reason": "Public static asset path requested."
+    },
+    "AUTH_DENIED_403": {
+      "status": "FALSE_POSITIVE",
+      "is_false_positive": true
+    },
+    "ERROR": {
+      "status": "ERROR",
+      "is_error": true
+    }
+  },
+  "step8_fastapi": {
+    "status": "PASS",
+    "api_status_code": 202,
+    "scan_id": "363eb129-82de-4fce-bd2f-0a0e7ab99c70",
+    "pipeline_executed_cleanly": true,
+    "pipeline_duration_seconds": 48.84
+  },
+  "step9_langgraph": {
+    "status": "PASS",
+    "graph_compiled": true,
+    "correlated_count": 2,
+    "hypotheses_count": 1,
+    "probes_executed": 1,
+    "execution_duration_seconds": 0.08,
+    "trace": [
+      "content='[Recon] Correlated 2 AST nodes with 10 crawler endpoints. Found 2 target candidates.' additional_kwargs={} response_metadata={} id='1b3b036a-68ea-4f19-97f5-9cbc87fbb082'",
+      "content='[Reason] Analysed 2 targets. Generated 1 vulnerability hypotheses. (LLM stub \u2014 wire up Ollama to replace this output.)' additional_kwargs={} response_metadata={} id='4d547b5e-1d19-48e1-a9d5-47f2b797114d'",
+      "content='[Verify] Dispatched 1 probe(s) via ExploitRunner. Verified 0 confirmed vulnerability finding(s).' additional_kwargs={} response_metadata={} id='d3d8e367-1f44-4a63-b6ea-3d1840443dd6'"
+    ],
+    "ai_model_note": "ReasonAgent utilized deterministic fallback rule because Ollama LLM endpoint was offline."
+  },
+  "acceptance_criteria": {
+    "Real Juice Shop target": true,
+    "Real Playwright execution": true,
+    "Real Recon JSON": true,
+    "Valid schema conversion": true,
+    "Real TestSpecification OR clearly documented controlled fixture": true,
+    "Real HTTPX execution": true,
+    "Real dual-session test": true,
+    "Real BOLA evidence": true,
+    "Real verification": true,
+    "False-positive filtering": true,
+    "Verified vulnerability result": true,
+    "FastAPI integration proven OR blocker documented": true,
+    "LangGraph integration proven OR blocker documented": true
+  },
+  "all_criteria_satisfied": true
+}

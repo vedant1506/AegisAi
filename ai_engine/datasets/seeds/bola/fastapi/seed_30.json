@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get('/api/cached-reports/{report_key}')\nasync def get_cached_report(\n    report_key: str,\n    redis_conn: aioredis.Redis = Depends(get_redis),\n    current_user: User = Depends(get_current_user)\n):\n    cached_data = await redis_conn.get(f\"report:{report_key}\")\n    if not cached_data:\n        raise HTTPException(status_code=404, detail=\"Report not available in cache\")\n        \n    return json.loads(cached_data)",
+  "diagnosis": "Fetches a pre-generated cached financial report directly from Redis using report_key from the URL path. It fails to verify if the report cached under that key belongs to current_user's organization.",
+  "exploit_request": "GET /api/cached-reports/corp_q3_summary_2026 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "@router.get('/api/cached-reports/{report_key}')\nasync def get_cached_report(\n    report_key: str,\n    redis_conn: aioredis.Redis = Depends(get_redis),\n    current_user: User = Depends(get_current_user)\n):\n    cached_data = await redis_conn.get(f\"report:{report_key}\")\n    if not cached_data:\n        raise HTTPException(status_code=404, detail=\"Report not available in cache\")\n        \n    report = json.loads(cached_data)\n    if report.get(\"org_id\") != current_user.organization_id:\n        raise HTTPException(status_code=403, detail=\"Access denied to report\")\n        \n    return report",
+  "severity": "HIGH",
+  "confidence": 0.89
+}

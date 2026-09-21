@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.get('/api/payments/history/:year', (req, res) => {\n  const year = req.params.year;\n  const userId = req.headers['x-user-id'];\n  db.query(`SELECT * FROM payments WHERE YEAR(date) = ${year} AND user_id = ${userId}`, (err, results) => {\n    res.json(results);\n  });\n});",
+  "diagnosis": "Endpoint reads userId from a header instead of the authenticated session context, allowing an attacker to spoof the header and view anyone's payment history.",
+  "exploit_request": "GET /api/payments/history/2023 HTTP/1.1\nHost: api.example.com\nx-user-id: 1",
+  "corrected_code": "app.get('/api/payments/history/:year', (req, res) => {\n  const year = req.params.year;\n  const userId = req.session.user_id;\n  db.query(`SELECT * FROM payments WHERE YEAR(date) = ? AND user_id = ?`, [year, userId], (err, results) => {\n    res.json(results);\n  });\n});",
+  "severity": "HIGH",
+  "confidence": 0.96
+}

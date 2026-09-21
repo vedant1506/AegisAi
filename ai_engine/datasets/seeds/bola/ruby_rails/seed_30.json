@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class MatchLobbyChannel < ApplicationCable::Channel\n  def subscribed\n    # Fails to check if match is private/invite-only before opening spectator stream\n    stream_from \"match_#{params[:match_id]}_spectate\"\n  end\nend",
+  "diagnosis": "MatchLobbyChannel permits streaming match spectator events without checking whether the match is an unlisted private scrimmage. Opposing teams can eavesdrop on private lobby team compositions and in-game draft communications.",
+  "exploit_request": "{\"command\":\"subscribe\",\"identifier\":\"{\\\"channel\\\":\\\"MatchLobbyChannel\\\",\\\"match_id\\\":\\\"mch_4419\\\"}\"}",
+  "corrected_code": "class MatchLobbyChannel < ApplicationCable::Channel\n  def subscribed\n    match = Match.find_by(id: params[:match_id])\n    reject unless match && (match.public_spectate? || match.participant?(current_user))\n\n    stream_from \"match_#{match.id}_spectate\"\n  end\nend",
+  "severity": "LOW",
+  "confidence": 0.83
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get(\"/monitoring/alerts/tenant/{tenant_slug}\")\nasync def get_tenant_active_alerts(\n    tenant_slug: str,\n    alertmanager_client: AlertmanagerClient = Depends(get_am_client),\n    current_user: User = Depends(get_current_user)\n):\n    alerts = await alertmanager_client.get_alerts(\n        filter_expr=f'tenant=\"{tenant_slug}\"'\n    )\n    return {\"tenant\": tenant_slug, \"active_incidents\": alerts}",
+  "diagnosis": "The endpoint retrieves active alerts from Alertmanager filtered by tenant=\"{tenant_slug}\". It does not check if current_user belongs to tenant_slug, leaking infrastructure incidents, database failovers, and internal hostname annotations of other organizations.",
+  "exploit_request": "GET /monitoring/alerts/tenant/bank_alpha HTTP/1.1\nHost: monitor.cloudops.net\nAuthorization: Bearer <regular_user_token>",
+  "corrected_code": "@router.get(\"/monitoring/alerts/tenant/{tenant_slug}\")\nasync def get_tenant_active_alerts(\n    tenant_slug: str,\n    alertmanager_client: AlertmanagerClient = Depends(get_am_client),\n    current_user: User = Depends(get_current_user)\n):\n    if tenant_slug != current_user.tenant_slug and not current_user.is_ops_admin:\n        raise HTTPException(status_code=403, detail=\"Forbidden: unauthorized access to tenant alert incidents\")\n\n    alerts = await alertmanager_client.get_alerts(\n        filter_expr=f'tenant=\"{tenant_slug}\"'\n    )\n    return {\"tenant\": tenant_slug, \"active_incidents\": alerts}",
+  "severity": "MEDIUM",
+  "confidence": 0.9
+}

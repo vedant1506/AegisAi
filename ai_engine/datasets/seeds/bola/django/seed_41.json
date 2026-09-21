@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@require_POST\ndef transcode_video_asset(request, video_id):\n    video = VideoAsset.objects.get(id=video_id)\n    target_format = request.POST.get('format', 'mp4')\n    output_prefix = request.POST.get('output_prefix')\n    transcode_media_task.delay(video.id, target_format, output_prefix)\n    return JsonResponse({'status': 'transcoding started'})",
+  "diagnosis": "The view fetches VideoAsset by video_id without verifying that video.uploader == request.user. It schedules a transcoding worker that writes encoded video files into output_prefix. An unauthorized user can process proprietary raw footage and divert the output.",
+  "exploit_request": "POST /api/media/transcode/7740/ HTTP/1.1\nHost: studio.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/x-www-form-urlencoded\n\nformat=webm&output_prefix=attacker_drop/",
+  "corrected_code": "@require_POST\ndef transcode_video_asset(request, video_id):\n    video = get_object_or_404(VideoAsset, id=video_id, uploader=request.user)\n    target_format = request.POST.get('format', 'mp4')\n    output_prefix = f\"users/{request.user.id}/transcodes/\"\n    transcode_media_task.delay(video.id, target_format, output_prefix)\n    return JsonResponse({'status': 'transcoding started'})",
+  "severity": "MEDIUM",
+  "confidence": 0.89
+}

@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "@app.put('/api/address/{address_id}')\ndef update_address(address_id: int, payload: AddressSchema, db: Session = Depends(get_db)):\n    address = db.query(Address).filter(Address.id == address_id).first()\n    address.street = payload.street\n    db.commit()\n    return address",
+  "diagnosis": "The address update endpoint fetches an address object by ID and modifies it without verifying that the requesting user owns that address.",
+  "exploit_request": "PUT /api/address/42 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"street\": \"Attacker Street\"}",
+  "corrected_code": "@app.put('/api/address/{address_id}')\ndef update_address(address_id: int, payload: AddressSchema, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):\n    address = db.query(Address).filter(Address.id == address_id, Address.user_id == current_user.id).first()\n    if not address:\n        raise HTTPException(status_code=403, detail=\"Forbidden\")\n    address.street = payload.street\n    db.commit()\n    return address"
+}

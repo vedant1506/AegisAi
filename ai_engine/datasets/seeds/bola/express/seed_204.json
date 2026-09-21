@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const { Queue } = require('bullmq');\nconst transcodeQueue = new Queue('transcode-pipeline', { connection: redisConfig });\n\napp.post('/api/media/transcode/:jobId/cancel', requireAuth, async (req, res) => {\n  const job = await transcodeQueue.getJob(req.params.jobId);\n  if (!job) return res.status(404).send('Job not found');\n  await job.discard();\n  await job.moveToFailed(new Error('Canceled by user'), true);\n  res.json({ canceled: true, jobId: job.id });\n});",
+  "diagnosis": "The endpoint cancels and discards a video transcoding job in BullMQ purely based on jobId from the URL path. It does not check if job.data.ownerId === req.user.id, allowing users to terminate video processing jobs belonging to other content creators.",
+  "exploit_request": "POST /api/media/transcode/job_vid_4k_99014/cancel HTTP/1.1\nHost: studio.videoplatform.io\nAuthorization: Bearer <creator_jwt>",
+  "corrected_code": "const { Queue } = require('bullmq');\nconst transcodeQueue = new Queue('transcode-pipeline', { connection: redisConfig });\n\napp.post('/api/media/transcode/:jobId/cancel', requireAuth, async (req, res) => {\n  const job = await transcodeQueue.getJob(req.params.jobId);\n  if (!job) return res.status(404).send('Job not found');\n  if (job.data.ownerId !== req.user.id) {\n    return res.status(403).send('Forbidden: cannot cancel transcode jobs of other users');\n  }\n  await job.discard();\n  await job.moveToFailed(new Error('Canceled by user'), true);\n  res.json({ canceled: true, jobId: job.id });\n});",
+  "severity": "LOW",
+  "confidence": 0.92
+}

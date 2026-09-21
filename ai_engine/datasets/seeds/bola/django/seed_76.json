@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\n@require_POST\ndef purge_tenant_sandbox_view(request):\n    tenant_id = request.POST.get('tenant_id')\n    call_command('wipe_tenant_sandbox', tenant_id=tenant_id)\n    return JsonResponse({'status': 'sandbox data purged', 'tenant_id': tenant_id})",
+  "diagnosis": "The view exposes a management command runner that purges all sandbox data for tenant_id. It performs no check to ensure request.user has administrative rights over tenant_id, allowing any authenticated user to wipe sandbox databases of competing tenants.",
+  "exploit_request": "POST /admin-api/sandboxes/purge/ HTTP/1.1\nHost: platform.example.com\nCookie: sessionid=attacker_session\nContent-Type: application/x-www-form-urlencoded\n\ntenant_id=tenant_abc_778",
+  "corrected_code": "@login_required\n@require_POST\ndef purge_tenant_sandbox_view(request):\n    tenant_id = request.POST.get('tenant_id')\n    if not request.user.administered_tenants.filter(id=tenant_id).exists():\n        raise PermissionDenied(\"You are not an administrator of this tenant.\")\n    call_command('wipe_tenant_sandbox', tenant_id=tenant_id)\n    return JsonResponse({'status': 'sandbox data purged', 'tenant_id': tenant_id})",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}

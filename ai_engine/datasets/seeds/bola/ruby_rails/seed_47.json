@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ReceiptsController < ApplicationController\n  def view_blob\n    # Fetches ActiveStorage::Blob directly without invoice ownership check\n    blob = ActiveStorage::Blob.find(params[:blob_id])\n    send_data blob.download, filename: blob.filename.to_s, type: blob.content_type\n  end\nend",
+  "diagnosis": "The view_blob action downloads an ActiveStorage::Blob directly by ID without connecting it to an authorized Invoice record. Any authenticated customer can access receipt PDFs and point-of-sale invoice images of other platform customers.",
+  "exploit_request": "GET /api/receipts/blobs/blob_3310 HTTP/1.1\nHost: pos.merchantpay.com\nAuthorization: Bearer customer_cookie_token\nAccept: application/pdf",
+  "corrected_code": "class ReceiptsController < ApplicationController\n  def view_blob\n    invoice = current_user.invoices.joins(:receipt_attachment).find_by!(\n      active_storage_attachments: { blob_id: params[:blob_id] }\n    )\n    blob = invoice.receipt.blob\n    send_data blob.download, filename: blob.filename.to_s, type: blob.content_type\n  end\nend",
+  "severity": "MEDIUM",
+  "confidence": 0.86
+}

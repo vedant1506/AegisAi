@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class WebhookEndpointPolicy < ApplicationPolicy\n  def trigger_test?\n    # Checks user existence and endpoint active flag, but omits organization matching\n    user.present? && record.active?\n  end\nend\n\nclass Api::WebhooksController < ApplicationController\n  def test_dispatch\n    @endpoint = WebhookEndpoint.find(params[:id])\n    authorize @endpoint, :trigger_test?\n\n    WebhookDispatchWorker.perform_async(@endpoint.id, params[:sample_payload])\n    render json: { message: 'Test webhook enqueued' }, status: :accepted\n  end\nend",
+  "diagnosis": "WebhookEndpointPolicy#trigger_test? confirms user presence and endpoint active status without ensuring the webhook endpoint belongs to current_user's organization. Attackers can trigger replay events and send attacker-specified payloads to external integration endpoints configured by other organizations.",
+  "exploit_request": "POST /api/webhooks/endpoints/whk_4819/test HTTP/1.1\nHost: api.saasconnect.io\nAuthorization: Bearer tenant_b_token_719\nContent-Type: application/json\n\n{\"sample_payload\": {\"event\": \"payment.failed\", \"override\": true}}",
+  "corrected_code": "class WebhookEndpointPolicy < ApplicationPolicy\n  def trigger_test?\n    return false unless user.present? && record.active?\n    record.organization_id == user.organization_id\n  end\nend\n\nclass Api::WebhooksController < ApplicationController\n  def test_dispatch\n    @endpoint = WebhookEndpoint.find(params[:id])\n    authorize @endpoint, :trigger_test?\n\n    WebhookDispatchWorker.perform_async(@endpoint.id, params[:sample_payload])\n    render json: { message: 'Test webhook enqueued' }, status: :accepted\n  end\nend",
+  "severity": "MEDIUM",
+  "confidence": 0.86
+}

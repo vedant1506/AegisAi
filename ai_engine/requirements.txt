@@ -2,30 +2,30 @@
 langgraph==0.2.56
 langchain==0.3.10
 langchain-community==0.3.10
-langchain-core==0.3.21
+langchain-core==0.3.22
 langchain-ollama==0.2.1
 
 # ── Unsloth (QLoRA fine-tuning) ───────────────────────────────
 # Install separately per platform:
 # pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 # For CUDA 12.1+: pip install unsloth
-unsloth==2024.11.10
+# unsloth==2024.11.10
 
 # ── Training stack ────────────────────────────────────────────
-torch==2.5.1
-transformers==4.47.0
-datasets==3.1.0
-accelerate==1.1.1
-peft==0.13.2
-bitsandbytes==0.44.1
-trl==0.12.1
+# torch==2.5.1
+# transformers==4.47.0
+# datasets==3.1.0
+# accelerate==1.1.1
+# peft==0.13.2
+# bitsandbytes==0.44.1
+# trl==0.12.1 
 
 # ── Utilities ────────────────────────────────────────────────
 pydantic==2.10.3
 python-dotenv==1.0.1
 structlog==24.4.0
 tqdm==4.67.1
-numpy==2.1.3
+numpy==1.26.4
 
 # ── Dev / Evaluation ─────────────────────────────────────────
 evaluate==0.4.3

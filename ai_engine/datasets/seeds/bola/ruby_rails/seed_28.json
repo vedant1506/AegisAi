@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class SupportAgentChannel < ApplicationCable::Channel\n  def subscribed\n    # Subscribes to customer queue stream without validating agent credentials\n    stream_from \"support_queue_#{params[:queue_code]}\"\n  end\nend",
+  "diagnosis": "The SupportAgentChannel allows subscribers to connect to any support queue by specifying queue_code. Standard end-users can subscribe to executive or VIP customer support queues to inspect unresolved customer escalations and internal staff notes.",
+  "exploit_request": "{\"command\":\"subscribe\",\"identifier\":\"{\\\"channel\\\":\\\"SupportAgentChannel\\\",\\\"queue_code\\\":\\\"vip_escalations\\\"}\"}",
+  "corrected_code": "class SupportAgentChannel < ApplicationCable::Channel\n  def subscribed\n    reject unless current_user.support_agent? && current_user.assigned_queue?(params[:queue_code])\n\n    stream_from \"support_queue_#{params[:queue_code]}\"\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.9
+}

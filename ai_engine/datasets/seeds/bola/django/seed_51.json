@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class TopSecretDossierDownloadView(View):\n    def get(self, request, dossier_uuid):\n        dossier = get_object_or_404(ClassifiedDossier, uuid=dossier_uuid)\n        if not request.user.has_perm('dossiers.view_classifieddossier'):\n            raise PermissionDenied(\"Insufficient security clearance.\")\n        return FileResponse(dossier.encrypted_archive.open('rb'), content_type='application/octet-stream')",
+  "diagnosis": "The view checks request.user.has_perm('dossiers.view_classifieddossier') without passing the dossier instance to has_perm. In django-guardian, omitting the object checks standard Django model-level permissions rather than object-level permissions, allowing any staff member with model-wide view rights to download classified dossiers restricted to other users.",
+  "exploit_request": "GET /api/dossiers/8b6287da-a4b5-412e-9d22-fbbfd77103a1/download/ HTTP/1.1\nHost: intelligence.gov.internal\nCookie: sessionid=analyst_session",
+  "corrected_code": "class TopSecretDossierDownloadView(View):\n    def get(self, request, dossier_uuid):\n        dossier = get_object_or_404(ClassifiedDossier, uuid=dossier_uuid)\n        if not request.user.has_perm('dossiers.view_classifieddossier', dossier):\n            raise PermissionDenied(\"Insufficient security clearance.\")\n        return FileResponse(dossier.encrypted_archive.open('rb'), content_type='application/octet-stream')",
+  "severity": "CRITICAL",
+  "confidence": 0.96
+}

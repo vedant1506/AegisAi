@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const messageResolvers = {\n  Subscription: {\n    directMessageReceived: {\n      subscribe: (root, { conversationId }, context) => {\n        return pubsub.asyncIterator([`CONVERSATION_${conversationId}_MESSAGES`]);\n      },\n      resolve: (payload) => payload.message\n    }\n  }\n};",
+  "diagnosis": "The subscription resolver listens to the topic for conversationId without checking if context.user.id is a participant in that conversation. An attacker can eavesdrop on private one-on-one message exchanges between other users by subscribing to target conversation IDs.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: chat.platform.com\nUpgrade: websocket\nSec-WebSocket-Protocol: graphql-transport-ws\n\n{\"type\": \"subscribe\", \"id\": \"leak_chat\", \"payload\": {\"query\": \"subscription { directMessageReceived(conversationId: \\\"conv_sec_99182\\\") { id text senderId createdAt } }\"}}",
+  "corrected_code": "const messageResolvers = {\n  Subscription: {\n    directMessageReceived: {\n      subscribe: async (root, { conversationId }, context) => {\n        if (!context.user) throw new Error('Unauthenticated');\n        const isMember = await ConversationMember.findOne({\n          where: { conversationId, userId: context.user.id }\n        });\n        if (!isMember) throw new Error('Unauthorized to subscribe to this conversation');\n        return pubsub.asyncIterator([`CONVERSATION_${conversationId}_MESSAGES`]);\n      },\n      resolve: (payload) => payload.message\n    }\n  }\n};",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

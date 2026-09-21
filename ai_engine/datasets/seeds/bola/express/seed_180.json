@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "io.on('connection', (socket) => {\n  socket.on('trading:cancel_order', async ({ orderId }) => {\n    const order = await LimitOrder.findByPk(orderId);\n    if (!order) return socket.emit('order_cancel_failed', { reason: 'Order not found' });\n    order.status = 'CANCELED';\n    await order.save();\n    socket.emit('order_canceled_confirmed', { orderId: order.id, status: order.status });\n  });\n});",
+  "diagnosis": "The real-time order cancellation handler updates order status without verifying that order.traderId matches socket.data.traderId. High-frequency traders or malicious users can cancel competitor buy/sell orders in the exchange order book.",
+  "exploit_request": "socket.emit('trading:cancel_order', {\n  orderId: 'ord_limit_a81920'\n});",
+  "corrected_code": "io.on('connection', (socket) => {\n  socket.on('trading:cancel_order', async ({ orderId }) => {\n    const order = await LimitOrder.findOne({ where: { id: orderId, traderId: socket.data.traderId } });\n    if (!order) return socket.emit('order_cancel_failed', { reason: 'Order not found or not owned by trader' });\n    order.status = 'CANCELED';\n    await order.save();\n    socket.emit('order_canceled_confirmed', { orderId: order.id, status: order.status });\n  });\n});",
+  "severity": "HIGH",
+  "confidence": 0.97
+}

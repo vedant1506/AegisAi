@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "from rest_framework.generics import DestroyAPIView\nfrom rest_framework.permissions import IsAuthenticated\nfrom invitations.models import Invitation\n\nclass CancelInvitationView(DestroyAPIView):\n    permission_classes = [IsAuthenticated]\n    queryset = Invitation.objects.all()\n\n    def perform_destroy(self, instance):\n        # Directly removes invitation by ID without verifying caller created it\n        instance.delete()",
+  "diagnosis": "CancelInvitationView enables any authenticated user to delete any Invitation instance across all workspaces by its primary key. Because the view uses an unrestricted Invitation.objects.all() queryset, an attacker can revoke onboarding invites belonging to other organizations, disrupting business operations.",
+  "exploit_request": "DELETE /api/invitations/1094/ HTTP/1.1\nHost: app.collaborative.com\nAuthorization: Bearer standard_user_jwt\nAccept: application/json",
+  "corrected_code": "from rest_framework.generics import DestroyAPIView\nfrom rest_framework.permissions import IsAuthenticated\nfrom invitations.models import Invitation\n\nclass CancelInvitationView(DestroyAPIView):\n    permission_classes = [IsAuthenticated]\n\n    def get_queryset(self):\n        # Restrict cancellation to invitations issued within the user's organization\n        return Invitation.objects.filter(inviter__organization=self.request.user.organization)\n\n    def perform_destroy(self, instance):\n        instance.delete()",
+  "severity": "MEDIUM",
+  "confidence": 0.85
+}

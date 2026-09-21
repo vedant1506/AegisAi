@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.get('/api/orders/:orderId/shipping-events', authenticate, (req, res) => {\n  res.writeHead(200, {\n    'Content-Type': 'text/event-stream',\n    'Cache-Control': 'no-cache',\n    Connection: 'keep-alive'\n  });\n\n  const onMilestone = (milestone) => {\n    res.write(`data: ${JSON.stringify(milestone)}\\n\\n`);\n  };\n\n  orderEvents.on(`order:${req.params.orderId}`, onMilestone);\n  req.on('close', () => {\n    orderEvents.off(`order:${req.params.orderId}`, onMilestone);\n  });\n});",
+  "diagnosis": "The SSE endpoint streams live shipping milestone updates (e.g. carrier pickup, out for delivery, delivery signatures) for orderId without verifying that req.user.id is the purchaser of the order. An attacker can track shipments and recipient addresses of other customers.",
+  "exploit_request": "GET /api/orders/ord_ship_440192/shipping-events HTTP/1.1\nHost: track.retailstore.com\nAuthorization: Bearer <customer_jwt>\nAccept: text/event-stream",
+  "corrected_code": "app.get('/api/orders/:orderId/shipping-events', authenticate, async (req, res) => {\n  const order = await Order.findOne({ where: { id: req.params.orderId, customerId: req.user.id } });\n  if (!order) {\n    return res.status(403).json({ error: 'Forbidden: you are not the owner of this order' });\n  }\n\n  res.writeHead(200, {\n    'Content-Type': 'text/event-stream',\n    'Cache-Control': 'no-cache',\n    Connection: 'keep-alive'\n  });\n\n  const onMilestone = (milestone) => {\n    res.write(`data: ${JSON.stringify(milestone)}\\n\\n`);\n  };\n\n  orderEvents.on(`order:${req.params.orderId}`, onMilestone);\n  req.on('close', () => {\n    orderEvents.off(`order:${req.params.orderId}`, onMilestone);\n  });\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.93
+}

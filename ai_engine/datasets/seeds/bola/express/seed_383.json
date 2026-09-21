@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "import { json, LoaderFunctionArgs } from '@remix-run/node';\nimport BookmarkModel from '~/models/Bookmark.server';\nimport { getUserIdFromSession } from '~/session.server';\n\nexport async function loader({ request, params }: LoaderFunctionArgs) {\n  const userId = await getUserIdFromSession(request);\n  if (!userId) throw new Response('Login required', { status: 401 });\n\n  const bookmark = await BookmarkModel.findById(params.bookmarkId);\n  if (!bookmark) throw new Response('Bookmark not found', { status: 404 });\n\n  return json({ bookmark });\n}",
+  "diagnosis": "The Remix loader queries bookmarks by params.bookmarkId using Mongoose findById without checking if bookmark.userId equals userId. Any logged-in user can enumerate bookmark IDs to discover private bookmark links and tags saved by other users.",
+  "exploit_request": "GET /bookmarks/65b501109a20019283710291 HTTP/1.1\nHost: reader.bookmarks.app\nCookie: auth_session=valid_user_cookie",
+  "corrected_code": "import { json, LoaderFunctionArgs } from '@remix-run/node';\nimport BookmarkModel from '~/models/Bookmark.server';\nimport { getUserIdFromSession } from '~/session.server';\n\nexport async function loader({ request, params }: LoaderFunctionArgs) {\n  const userId = await getUserIdFromSession(request);\n  if (!userId) throw new Response('Login required', { status: 401 });\n\n  const bookmark = await BookmarkModel.findOne({\n    _id: params.bookmarkId,\n    userId: userId,\n  });\n  if (!bookmark) throw new Response('Forbidden or Not Found', { status: 403 });\n\n  return json({ bookmark });\n}",
+  "severity": "LOW",
+  "confidence": 0.86
+}

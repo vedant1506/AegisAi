@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.post('/api/profile/deleteBulk', async (req, res) => {\n  await Profile.deleteMany({ _id: { $in: req.body.ids } });\n  res.send('Bulk deleted');\n});",
+  "diagnosis": "The bulk action endpoint deletes multiple profile records based on an array of IDs from the request body without checking if the user owns all of them.",
+  "exploit_request": "POST /api/profile/deleteBulk HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/json\n\n{\"ids\": [101, 102, 103]}",
+  "corrected_code": "app.post('/api/profile/deleteBulk', async (req, res) => {\n  await Profile.deleteMany({ _id: { $in: req.body.ids }, ownerId: req.user.id });\n  res.send('Bulk deleted');\n});"
+}

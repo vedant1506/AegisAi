@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.post('/api/users/messages/read', async (req, res) => {\n  const { messageId } = req.body;\n  await User.updateOne({ 'messages._id': messageId }, { $set: { 'messages.$.read': true } });\n  res.send('Marked read');\n});",
+  "diagnosis": "Mongoose updateOne finds ANY user document that has the given messageId in its messages array and updates it. An attacker can mark other users' messages as read.",
+  "exploit_request": "POST /api/users/messages/read HTTP/1.1\nContent-Type: application/json\n\n{\"messageId\": \"msg_999\"}",
+  "corrected_code": "app.post('/api/users/messages/read', async (req, res) => {\n  const { messageId } = req.body;\n  await User.updateOne({ _id: req.user._id, 'messages._id': messageId }, { $set: { 'messages.$.read': true } });\n  res.send('Marked read');\n});",
+  "severity": "LOW",
+  "confidence": 0.9
+}

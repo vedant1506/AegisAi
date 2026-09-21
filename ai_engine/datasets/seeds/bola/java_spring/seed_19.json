@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "package com.talent.hr.repository;\n\nimport com.talent.hr.entity.PerformanceReview;\nimport org.springframework.data.repository.PagingAndSortingRepository;\nimport org.springframework.data.rest.core.annotation.RepositoryRestResource;\n\n@RepositoryRestResource(path = \"appraisal-reviews\")\npublic interface PerformanceReviewRepository extends PagingAndSortingRepository<PerformanceReview, Long> {\n}",
+  "diagnosis": "Spring Data REST exposes the PerformanceReview repository without object-level security. Any authenticated employee can query /appraisal-reviews/{id} to view confidential manager ratings, promotion evaluations, and constructive criticism intended solely for peer employees and executives.",
+  "exploit_request": "GET /appraisal-reviews/1092 HTTP/1.1\nHost: talent.corporation.com\nAuthorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlbXBsb3llZV8zMSJ9.sig\nAccept: application/hal+json",
+  "corrected_code": "package com.talent.hr.repository;\n\nimport com.talent.hr.entity.PerformanceReview;\nimport org.springframework.data.repository.PagingAndSortingRepository;\nimport org.springframework.data.rest.core.annotation.RepositoryRestResource;\nimport org.springframework.security.access.prepost.PostAuthorize;\nimport java.util.Optional;\n\n@RepositoryRestResource(path = \"appraisal-reviews\")\npublic interface PerformanceReviewRepository extends PagingAndSortingRepository<PerformanceReview, Long> {\n\n    @PostAuthorize(\"returnObject.isPresent() and (returnObject.get().employeeId == principal.id or returnObject.get().reviewerId == principal.id or hasRole('HR_ADMIN'))\")\n    Optional<PerformanceReview> findById(Long id);\n}",
+  "severity": "MEDIUM",
+  "confidence": 0.89
+}

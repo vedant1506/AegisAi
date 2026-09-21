@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class TasksController < ApplicationController\n  def create\n    # Permits project_id parameter without verifying membership in target project\n    @task = Task.new(task_params)\n    @task.creator = current_user\n    @task.save!\n    render json: @task, status: :created\n  end\n\n  private\n\n  def task_params\n    params.require(:task).permit(:title, :description, :project_id, :assignee_id)\n  end\nend",
+  "diagnosis": "Allowing project_id in task_params permits users in Project A to inject arbitrary tasks into Project B belonging to different client accounts, leading to unauthorized task tracking and internal communication pollution.",
+  "exploit_request": "POST /api/tasks HTTP/1.1\nHost: pm.agile-tracker.com\nAuthorization: Bearer user_token_193\nContent-Type: application/json\n\n{\"task\": {\"title\": \"Exfiltrate schema\", \"description\": \"Run dump\", \"project_id\": 301}}",
+  "corrected_code": "class TasksController < ApplicationController\n  def create\n    project = current_user.accessible_projects.find(task_params[:project_id])\n    @task = project.tasks.build(task_params.except(:project_id))\n    @task.creator = current_user\n    @task.save!\n    render json: @task, status: :created\n  end\n\n  private\n\n  def task_params\n    params.require(:task).permit(:title, :description, :project_id, :assignee_id)\n  end\nend",
+  "severity": "MEDIUM",
+  "confidence": 0.87
+}

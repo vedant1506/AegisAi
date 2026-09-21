@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class Billing::PaymentMethodsController < ApplicationController\n  before_action :authenticate_user!\n\n  def set_default\n    payment_method = PaymentMethod.find(params[:id])\n    current_user.update!(default_payment_method_id: payment_method.id)\n\n    render json: {\n      message: 'Default payment method updated',\n      default_method: payment_method.display_brand_and_last4\n    }\n  end\nend",
+  "diagnosis": "The set_default endpoint retrieves an arbitrary PaymentMethod record by ID without checking whether the payment token belongs to current_user. An attacker can associate other customers' stored credit cards or bank accounts with their own profile and fraudulently charge subsequent platform orders to victim accounts.",
+  "exploit_request": "POST /api/billing/payment_methods/pm_99214/set_default HTTP/1.1\nHost: checkout.saasmarket.com\nAuthorization: Bearer customer_session_token_11\nContent-Type: application/json",
+  "corrected_code": "class Billing::PaymentMethodsController < ApplicationController\n  before_action :authenticate_user!\n\n  def set_default\n    payment_method = current_user.payment_methods.find(params[:id])\n    current_user.update!(default_payment_method_id: payment_method.id)\n\n    render json: {\n      message: 'Default payment method updated',\n      default_method: payment_method.display_brand_and_last4\n    }\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

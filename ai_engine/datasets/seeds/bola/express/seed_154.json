@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "app.get('/api/users/orders', async (req, res) => {\n  const orderId = req.headers['x-order-id'];\n  const order = await db.collection('orders').findOne({ _id: new ObjectId(orderId) });\n  if (!order) {\n    return res.status(404).send('Not found');\n  }\n  res.json(order);\n});",
+  "diagnosis": "The endpoint retrieves an order using an ID from the 'x-order-id' header. It fails to check if the authenticated user is the owner of the order, allowing an attacker to access other users' orders by modifying the header.",
+  "exploit_request": "GET /api/users/orders HTTP/1.1\nHost: api.example.com\nx-order-id: 507f1f77bcf86cd799439011\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.get('/api/users/orders', async (req, res) => {\n  const orderId = req.headers['x-order-id'];\n  const order = await db.collection('orders').findOne({ _id: new ObjectId(orderId) });\n  if (order && order.user_id.equals(req.user._id)) {\n    res.json(order);\n  } else {\n    res.status(403).send('Forbidden');\n  }\n});",
+  "severity": "LOW",
+  "confidence": 0.75
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class PayrollTaxDocumentViewSet(viewsets.ReadOnlyModelViewSet):\n    queryset = TaxDocument.objects.all()\n    serializer_class = TaxDocumentSerializer\n    permission_classes = [permissions.IsAuthenticated]\n\n    @action(detail=True, methods=['get'], url_path='download')\n    def download_tax_form(self, request, pk=None):\n        doc = TaxDocument.objects.get(pk=pk)\n        return FileResponse(doc.pdf_file.open('rb'), content_type='application/pdf')",
+  "diagnosis": "The viewset provides a W-2 tax document download action by looking up the document directly by primary key from the URL. It does not verify that the tax document belongs to the requesting employee, exposing confidential tax returns and Social Security Numbers.",
+  "exploit_request": "GET /api/tax-forms/2025/download/ HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "class PayrollTaxDocumentViewSet(viewsets.ReadOnlyModelViewSet):\n    serializer_class = TaxDocumentSerializer\n    permission_classes = [permissions.IsAuthenticated]\n\n    def get_queryset(self):\n        return TaxDocument.objects.filter(employee=self.request.user)\n\n    @action(detail=True, methods=['get'], url_path='download')\n    def download_tax_form(self, request, pk=None):\n        doc = self.get_object()\n        return FileResponse(doc.pdf_file.open('rb'), content_type='application/pdf')",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "io.on('connection', (socket) => {\n  socket.on('webrtc_offer', ({ consultationId, sdpOffer }) => {\n    socket.to(`consultation:${consultationId}`).emit('incoming_sdp_offer', {\n      fromUser: socket.data.userId,\n      sdpOffer\n    });\n  });\n});",
+  "diagnosis": "The event handler relays WebRTC connection descriptors (sdpOffer) into consultation:${consultationId} without verifying if socket.data.userId is the designated patient or medical specialist for that consultation. An attacker can inject SDP offers to hijack or eavesdrop on video streams during telehealth visits.",
+  "exploit_request": "// Attacker Socket.io client\nsocket.emit('webrtc_offer', {\n  consultationId: 'telehealth_visit_5910',\n  sdpOffer: { type: 'offer', sdp: 'v=0\\r\\no=attacker...' }\n});",
+  "corrected_code": "io.on('connection', (socket) => {\n  socket.on('webrtc_offer', async ({ consultationId, sdpOffer }) => {\n    const session = await ConsultationSession.findByPk(consultationId);\n    if (!session || (session.patientId !== socket.data.userId && session.doctorId !== socket.data.userId)) {\n      return socket.emit('error', { message: 'Not authorized for this medical consultation' });\n    }\n    socket.to(`consultation:${consultationId}`).emit('incoming_sdp_offer', {\n      fromUser: socket.data.userId,\n      sdpOffer\n    });\n  });\n});",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "io.on('connection', (socket) => {\n  socket.on('canvas:draw_shape', async ({ whiteboardId, shapeData }) => {\n    await CanvasModel.findByIdAndUpdate(whiteboardId, {\n      $push: { shapes: shapeData }\n    });\n    io.to(`canvas:${whiteboardId}`).emit('canvas:shape_added', shapeData);\n  });\n});",
+  "diagnosis": "Canvas modifications received via socket event are written directly to MongoDB using CanvasModel.findByIdAndUpdate without verifying whether socket.data.userId has write access to whiteboardId. Attackers can deface or corrupt collaborative drawings and architectures.",
+  "exploit_request": "socket.emit('canvas:draw_shape', {\n  whiteboardId: 'wb_system_architecture_01',\n  shapeData: { type: 'rectangle', color: '#ff0000', points: [0, 0, 500, 500] }\n});",
+  "corrected_code": "io.on('connection', (socket) => {\n  socket.on('canvas:draw_shape', async ({ whiteboardId, shapeData }) => {\n    const board = await CanvasModel.findOne({ _id: whiteboardId, 'collaborators.userId': socket.data.userId, 'collaborators.canEdit': true });\n    if (!board) {\n      return socket.emit('error', { message: 'Insufficient edit permissions for this canvas' });\n    }\n    board.shapes.push(shapeData);\n    await board.save();\n    io.to(`canvas:${whiteboardId}`).emit('canvas:shape_added', shapeData);\n  });\n});",
+  "severity": "MEDIUM",
+  "confidence": 0.92
+}

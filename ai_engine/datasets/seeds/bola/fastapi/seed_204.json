@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.get(\"/interviews/evaluations/{evaluation_id}\")\nasync def get_candidate_evaluation(\n    evaluation_id: int,\n    current_user: User = Depends(get_current_user)\n):\n    try:\n        eval_record = await CandidateEvaluation.objects.select_related(\n            [\"candidate\", \"interviewer\"]\n        ).get(id=evaluation_id)\n        return eval_record\n    except ormar.NoMatch:\n        raise HTTPException(status_code=404, detail=\"Candidate evaluation not found\")",
+  "diagnosis": "The interview evaluation route fetches candidate scores, compensation expectations, and confidential hiring notes using ormar without scoping the query to the hiring team or requisition assigned to current_user. Any authenticated employee can retrieve candidate evaluations from other job openings and executive searches.",
+  "exploit_request": "GET /interviews/evaluations/9102 HTTP/1.1\nHost: hr.enterprise.net\nAuthorization: Bearer <employee_jwt>",
+  "corrected_code": "@router.get(\"/interviews/evaluations/{evaluation_id}\")\nasync def get_candidate_evaluation(\n    evaluation_id: int,\n    current_user: User = Depends(get_current_user)\n):\n    try:\n        eval_record = await CandidateEvaluation.objects.select_related(\n            [\"candidate\", \"interviewer\"]\n        ).get(id=evaluation_id)\n    except ormar.NoMatch:\n        raise HTTPException(status_code=404, detail=\"Candidate evaluation not found\")\n\n    if eval_record.candidate.department_id != current_user.department_id and not current_user.is_recruiting_lead:\n        raise HTTPException(status_code=403, detail=\"Forbidden: unauthorized to view evaluations for this requisition\")\n    return eval_record",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

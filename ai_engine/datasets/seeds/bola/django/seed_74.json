@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@login_required\ndef trigger_social_profile_refresh(request, account_id):\n    account = SocialAccount.objects.get(id=account_id)\n    adapter = get_adapter(request)\n    adapter.populate_user(request, account.user, account.extra_data)\n    return JsonResponse({'status': 'synced', 'provider': account.provider})",
+  "diagnosis": "The endpoint triggers a social profile synchronization for the specified account_id without verifying that account.user == request.user. Any authenticated user can trigger data population and profile updates against other users' accounts.",
+  "exploit_request": "POST /accounts/social/331/sync/ HTTP/1.1\nHost: sso.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "@login_required\ndef trigger_social_profile_refresh(request, account_id):\n    account = get_object_or_404(SocialAccount, id=account_id, user=request.user)\n    adapter = get_adapter(request)\n    adapter.populate_user(request, account.user, account.extra_data)\n    return JsonResponse({'status': 'synced', 'provider': account.provider})",
+  "severity": "LOW",
+  "confidence": 0.86
+}

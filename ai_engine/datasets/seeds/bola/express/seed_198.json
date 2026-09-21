@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "router.param('contractId', async (req, res, next, id) => {\n  const contract = await Contract.findByPk(id);\n  if (!contract) return res.status(404).send('Contract not found');\n  req.locals = { contract };\n  next();\n});\n\nrouter.delete('/contracts/:contractId', jwtAuth, async (req, res) => {\n  await req.locals.contract.destroy();\n  res.status(204).send();\n});",
+  "diagnosis": "An Express router.param preloads a contract entity and attaches it to req.locals without validating that req.user is a counterparty or signatory on the contract. The DELETE handler executes contract.destroy() without authorization, enabling cross-tenant contract deletion.",
+  "exploit_request": "DELETE /contracts/89401 HTTP/1.1\nHost: legal.signportal.com\nAuthorization: Bearer <client_jwt>",
+  "corrected_code": "router.param('contractId', async (req, res, next, id) => {\n  const contract = await Contract.findByPk(id);\n  if (!contract) return res.status(404).send('Contract not found');\n  req.locals = { contract };\n  next();\n});\n\nrouter.delete('/contracts/:contractId', jwtAuth, async (req, res) => {\n  if (req.locals.contract.clientId !== req.user.clientId) {\n    return res.status(403).send('Forbidden: cannot delete contracts belonging to another client');\n  }\n  await req.locals.contract.destroy();\n  res.status(204).send();\n});",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

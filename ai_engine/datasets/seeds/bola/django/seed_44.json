@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@require_POST\ndef update_custom_domain_cname(request):\n    domain_id = request.POST.get('domain_id')\n    new_cname = request.POST.get('cname_target')\n    domain = TenantDomain.objects.get(id=domain_id)\n    domain.cname_target = new_cname\n    domain.save(update_fields=['cname_target'])\n    return JsonResponse({'status': 'cname updated', 'domain': domain.domain_name})",
+  "diagnosis": "The endpoint retrieves a TenantDomain mapping by domain_id and updates its DNS routing target without verifying that the domain belongs to the current tenant or that request.user has domain management privileges, allowing domain takeover.",
+  "exploit_request": "POST /api/tenants/domains/update-cname/ HTTP/1.1\nHost: saas.example.com\nAuthorization: Bearer <attacker_token>\nContent-Type: application/x-www-form-urlencoded\n\ndomain_id=208&cname_target=traffic.attacker.com",
+  "corrected_code": "@require_POST\ndef update_custom_domain_cname(request):\n    domain_id = request.POST.get('domain_id')\n    new_cname = request.POST.get('cname_target')\n    domain = get_object_or_404(TenantDomain, id=domain_id, tenant=request.tenant)\n    domain.cname_target = new_cname\n    domain.save(update_fields=['cname_target'])\n    return JsonResponse({'status': 'cname updated', 'domain': domain.domain_name})",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

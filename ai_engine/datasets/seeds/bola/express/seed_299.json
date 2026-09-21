@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "import { db } from '../services/database';\n\nexport async function syncEmailDigestActivity(input: {\n  userId: string;\n  frequency: 'DAILY' | 'WEEKLY' | 'NEVER';\n}) {\n  const { userId, frequency } = input;\n\n  await db('user_preferences')\n    .where({ user_id: userId })\n    .update({ digest_frequency: frequency, updated_at: new Date() });\n\n  return { success: true };\n}",
+  "diagnosis": "The activity updates user communication digest preferences in user_preferences based on input.userId without validating whether the workflow was scheduled by the user or an authorized admin, permitting unauthorized modification of communication frequencies on arbitrary accounts.",
+  "exploit_request": "POST /api/workflows/preferences/digest HTTP/1.1\nHost: settings.communityplatform.org\nAuthorization: Bearer <user_jwt>\nContent-Type: application/json\n\n{\"userId\": \"usr_random_member_4491\", \"frequency\": \"NEVER\"}",
+  "corrected_code": "import { db } from '../services/database';\n\nexport async function syncEmailDigestActivity(input: {\n  userId: string;\n  callerUserId: string;\n  frequency: 'DAILY' | 'WEEKLY' | 'NEVER';\n}) {\n  const { userId, callerUserId, frequency } = input;\n\n  if (userId !== callerUserId) {\n    throw new Error('Forbidden: cannot modify notification digest preferences for other users');\n  }\n\n  await db('user_preferences')\n    .where({ user_id: userId })\n    .update({ digest_frequency: frequency, updated_at: new Date() });\n\n  return { success: true };\n}",
+  "severity": "LOW",
+  "confidence": 0.8
+}

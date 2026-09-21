@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const documentCollaborationResolvers = {\n  Subscription: {\n    documentDeltaApplied: {\n      subscribe: (parent, { docId }, context) => {\n        return pubsub.asyncIterator([`DOC_${docId}_DELTAS`]);\n      },\n      resolve: (payload) => payload.delta\n    }\n  }\n};",
+  "diagnosis": "When subscribing to real-time collaborative text deltas, the resolver immediately returns the asyncIterator for the specified docId without verifying if context.user has read or edit permissions for that document, allowing unauthorized clients to monitor document drafting in real time.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: docs.enterprise.com\nUpgrade: websocket\nSec-WebSocket-Protocol: graphql-transport-ws\n\n{\"type\": \"subscribe\", \"id\": \"doc_sub\", \"payload\": {\"query\": \"subscription { documentDeltaApplied(docId: \\\"doc_merger_confidential_2026\\\") { cursorPosition insertedText removedText } }\"}}",
+  "corrected_code": "const documentCollaborationResolvers = {\n  Subscription: {\n    documentDeltaApplied: {\n      subscribe: async (parent, { docId }, context) => {\n        if (!context.user) throw new Error('Unauthorized');\n        const doc = await Document.findOne({\n          where: { id: docId, organizationId: context.user.organizationId }\n        });\n        if (!doc) throw new Error('Access to document stream denied');\n        return pubsub.asyncIterator([`DOC_${docId}_DELTAS`]);\n      },\n      resolve: (payload) => payload.delta\n    }\n  }\n};",
+  "severity": "MEDIUM",
+  "confidence": 0.91
+}

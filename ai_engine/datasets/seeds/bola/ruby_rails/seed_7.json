@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class ContractPolicy < ApplicationPolicy\n  def download_pdf?\n    # Defective policy logic: checks if user is logged in and document is not archived,\n    # but fails to verify that the user is the client or assigned attorney\n    user.present? && !record.archived?\n  end\nend\n\nclass ContractsController < ApplicationController\n  def download\n    @contract = Contract.find(params[:id])\n    authorize @contract, :download_pdf?\n\n    send_file @contract.rendered_pdf_path, disposition: 'attachment'\n  end\nend",
+  "diagnosis": "The ContractPolicy#download_pdf? method checks user.present? and document archival state instead of enforcing object-level ownership. Any authenticated user on the legal platform can download sensitive contracts and agreements belonging to unrelated clients.",
+  "exploit_request": "GET /api/contracts/ctr_5502/download HTTP/1.1\nHost: legal.caseflow-app.io\nAuthorization: Bearer client_jwt_token_881\nAccept: application/pdf",
+  "corrected_code": "class ContractPolicy < ApplicationPolicy\n  def download_pdf?\n    return false unless user.present? && !record.archived?\n    user.admin? || record.client_id == user.id || record.attorney_id == user.id\n  end\nend\n\nclass ContractsController < ApplicationController\n  def download\n    @contract = Contract.find(params[:id])\n    authorize @contract, :download_pdf?\n\n    send_file @contract.rendered_pdf_path, disposition: 'attachment'\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.95
+}

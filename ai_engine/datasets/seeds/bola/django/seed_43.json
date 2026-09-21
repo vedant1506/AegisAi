@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "def get_tenant_api_quota(request, tenant_id):\n    quota = TenantApiQuota.objects.get(tenant_id=tenant_id)\n    return JsonResponse({\n        'tenant_id': quota.tenant_id,\n        'rate_limit_per_minute': quota.rate_limit,\n        'secret_gateway_key': quota.gateway_key\n    })",
+  "diagnosis": "TenantApiQuota resides in the shared public schema. The endpoint queries quota details directly by tenant_id without verifying that request.user has administrative authority over that tenant, exposing the tenant's gateway API credentials.",
+  "exploit_request": "GET /api/tenants/52/quota/ HTTP/1.1\nHost: platform.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "def get_tenant_api_quota(request, tenant_id):\n    if not request.user.tenant_memberships.filter(tenant_id=tenant_id, is_admin=True).exists():\n        return HttpResponseForbidden()\n    quota = get_object_or_404(TenantApiQuota, tenant_id=tenant_id)\n    return JsonResponse({\n        'tenant_id': quota.tenant_id,\n        'rate_limit_per_minute': quota.rate_limit,\n        'secret_gateway_key': quota.gateway_key\n    })",
+  "severity": "LOW",
+  "confidence": 0.92
+}

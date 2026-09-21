@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@strawberry.type\nclass Query:\n    @strawberry.field\n    def team_notes(self, info: Info, project_id: str) -> List[NoteType]:\n        db: Session = info.context[\"db\"]\n        notes = db.query(ProjectNote).filter(ProjectNote.project_id == project_id).all()\n        return [NoteType.from_orm(n) for n in notes]",
+  "diagnosis": "The team_notes GraphQL field returns internal notes for a given project_id without checking whether the requesting user is a registered member or collaborator on that project. Any user who discovers or guesses a project UUID can extract all private planning notes and architectural discussions.",
+  "exploit_request": "POST /graphql HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>\nContent-Type: application/json\n\n{\"query\": \"query { teamNotes(projectId: \\\"prj_secret_roadmap\\\") { id title content author } }\"}",
+  "corrected_code": "@strawberry.type\nclass Query:\n    @strawberry.field\n    def team_notes(self, info: Info, project_id: str) -> List[NoteType]:\n        db: Session = info.context[\"db\"]\n        user = info.context[\"user\"]\n        membership = db.query(ProjectMember).filter(\n            ProjectMember.project_id == project_id,\n            ProjectMember.user_id == user.id\n        ).first()\n        if not membership:\n            return []\n        notes = db.query(ProjectNote).filter(ProjectNote.project_id == project_id).all()\n        return [NoteType.from_orm(n) for n in notes]",
+  "severity": "MEDIUM",
+  "confidence": 0.91
+}

@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@require_http_methods([\"POST\"])\ndef purge_backup_snapshot(request, snapshot_id):\n    snapshot = DatabaseSnapshot.objects.get(id=snapshot_id)\n    delete_s3_snapshot_task.delay(storage_key=snapshot.s3_key)\n    snapshot.delete()\n    return JsonResponse({'status': 'snapshot purge scheduled'})",
+  "diagnosis": "The endpoint looks up DatabaseSnapshot solely by snapshot_id and schedules an asynchronous deletion task on S3. It does not check if the snapshot belongs to request.user.account, enabling malicious users to schedule the permanent deletion of another company's disaster recovery backups.",
+  "exploit_request": "POST /api/snapshots/snap_88192/purge/ HTTP/1.1\nHost: backups.example.com\nCookie: sessionid=attacker_session",
+  "corrected_code": "@require_http_methods([\"POST\"])\ndef purge_backup_snapshot(request, snapshot_id):\n    snapshot = get_object_or_404(DatabaseSnapshot, id=snapshot_id, account=request.user.account)\n    delete_s3_snapshot_task.delay(storage_key=snapshot.s3_key)\n    snapshot.delete()\n    return JsonResponse({'status': 'snapshot purge scheduled'})",
+  "severity": "HIGH",
+  "confidence": 0.94
+}

@@ -1,0 +1,44 @@
+{
+  "testbed_name": "Custom Ground-Truth Authorization Testbed",
+  "target_url": "http://localhost:3000",
+  "timestamp": "2026-09-07T17:29:20.146786",
+  "duration_seconds": 12.4,
+  "total_ground_truth": 10,
+  "detected_vulnerabilities": 2,
+  "true_positives": 2,
+  "false_positives": 0,
+  "false_negatives": 8,
+  "precision": 1.0,
+  "recall": 0.2,
+  "f1_score": 0.3333,
+  "detection_rate": 0.2,
+  "routes_discovered": 14,
+  "apis_discovered": 10,
+  "tests_executed": 3,
+  "findings_detail": [
+    {
+      "test_id": "TEST-001",
+      "vuln_type": "BOLA",
+      "status": "VERIFIED",
+      "confidence": 0.95,
+      "url": "http://localhost:3000/api/v1/users/42/billing",
+      "reason": "Leaked victim billing data"
+    },
+    {
+      "test_id": "TEST-002",
+      "vuln_type": "BOLA",
+      "status": "VERIFIED",
+      "confidence": 0.92,
+      "url": "http://localhost:3000/api/v1/documents/doc_123",
+      "reason": "Leaked document payload"
+    },
+    {
+      "test_id": "TEST-003",
+      "vuln_type": "SQLI",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.0,
+      "url": "http://localhost:3000/api/v1/search",
+      "reason": "Payload sanitized"
+    }
+  ]
+}

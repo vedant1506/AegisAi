@@ -1,0 +1,6 @@
+{
+  "vulnerable_code": "app.get('/api/users/:uid/profile/:itemId', async (req, res) => {\n  const item = await Profile.findById(req.params.itemId);\n  res.json(item);\n});",
+  "diagnosis": "A nested route for profile fetches the item by 'itemId' but ignores the 'uid' and the authenticated session, causing BOLA.",
+  "exploit_request": "GET /api/users/1/profile/789 HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "app.get('/api/users/:uid/profile/:itemId', async (req, res) => {\n  if (req.user.id !== req.params.uid) return res.status(403).send('Forbidden');\n  const item = await Profile.findOne({ _id: req.params.itemId, userId: req.user.id });\n  res.json(item);\n});"
+}

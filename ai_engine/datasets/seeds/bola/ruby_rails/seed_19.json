@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class UserProfileSerializer < ActiveModel::Serializer\n  attributes :id, :username, :email, :role\n\n  # Leaking private session credentials and SSO tokens in public directory serialization\n  has_many :auth_tokens\n  has_many :sso_identities\nend\n\nclass Api::V1::UsersController < Api::BaseController\n  def show\n    user = User.find(params[:id])\n    render json: user, serializer: UserProfileSerializer\n  end\nend",
+  "diagnosis": "UserProfileSerializer includes auth_tokens and sso_identities associations without checking if the current viewer (scope) is the owner of the user profile. Any registered organization user querying colleagues' directory profiles receives active API session tokens and OAuth refresh secrets, enabling full account takeover.",
+  "exploit_request": "GET /api/v1/users/usr_4821 HTTP/1.1\nHost: api.collab-suite.com\nAuthorization: Bearer org_member_jwt_202\nAccept: application/json",
+  "corrected_code": "class UserProfileSerializer < ActiveModel::Serializer\n  attributes :id, :username, :email, :role\n\n  has_many :auth_tokens, if: :current_user_or_admin?\n  has_many :sso_identities, if: :current_user_or_admin?\n\n  def current_user_or_admin?\n    scope == object || scope&.admin?\n  end\nend\n\nclass Api::V1::UsersController < Api::BaseController\n  def show\n    user = User.find(params[:id])\n    render json: user, serializer: UserProfileSerializer\n  end\nend",
+  "severity": "CRITICAL",
+  "confidence": 0.97
+}

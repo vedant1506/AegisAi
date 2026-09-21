@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class CameraSerializer < ActiveModel::Serializer\n  attributes :id, :name, :streaming_url\n\n  # Leaks historic surveillance archives to newly invited temporary guests\n  has_many :cloud_recordings\nend\n\nclass Api::CamerasController < ApplicationController\n  def show\n    camera = Camera.find(params[:id])\n    render json: camera\n  end\nend",
+  "diagnosis": "CameraSerializer unconditionally embeds the cloud_recordings association. Temporary house guests granted live stream viewing can retrieve all archived historical video clips recorded prior to their invitation.",
+  "exploit_request": "GET /api/smarthome/cameras/cam_7721 HTTP/1.1\nHost: hub.smartsecurity-home.com\nAuthorization: Bearer guest_invite_jwt_55\nAccept: application/json",
+  "corrected_code": "class CameraSerializer < ActiveModel::Serializer\n  attributes :id, :name, :streaming_url\n\n  has_many :cloud_recordings\n\n  def cloud_recordings\n    if scope&.camera_owner?(object)\n      object.cloud_recordings\n    elsif (grant = scope&.access_grants&.find_by(camera: object))\n      object.cloud_recordings.where('created_at >= ?', grant.valid_from)\n    else\n      CloudRecording.none\n    end\n  end\nend\n\nclass Api::CamerasController < ApplicationController\n  def show\n    camera = Camera.find(params[:id])\n    render json: camera\n  end\nend",
+  "severity": "HIGH",
+  "confidence": 0.93
+}

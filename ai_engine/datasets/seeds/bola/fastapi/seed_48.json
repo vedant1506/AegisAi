@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "@router.post(\"/reports/{report_id}/generate-pdf\")\ndef trigger_pdf_generation(\n    report_id: int,\n    background_tasks: BackgroundTasks,\n    user: User = Depends(get_current_user)\n):\n    background_tasks.add_task(render_and_email_report, report_id, user.email)\n    return {\"status\": \"enqueued\", \"report_id\": report_id, \"recipient\": user.email}",
+  "diagnosis": "The endpoint accepts report_id from the URL and enqueues a background task to render the report and send it to user.email. It performs no ownership check on report_id prior to enqueuing the job, enabling an attacker to trigger generation and delivery of any user's confidential financial report directly to the attacker's inbox.",
+  "exploit_request": "POST /reports/3091/generate-pdf HTTP/1.1\nHost: api.example.com\nAuthorization: Bearer <attacker_jwt>",
+  "corrected_code": "@router.post(\"/reports/{report_id}/generate-pdf\")\ndef trigger_pdf_generation(\n    report_id: int,\n    background_tasks: BackgroundTasks,\n    user: User = Depends(get_current_user),\n    db: Session = Depends(get_db)\n):\n    report = db.query(Report).filter(Report.id == report_id, Report.owner_id == user.id).first()\n    if not report:\n        raise HTTPException(status_code=404, detail=\"Report not found\")\n        \n    background_tasks.add_task(render_and_email_report, report_id, user.email)\n    return {\"status\": \"enqueued\", \"report_id\": report_id, \"recipient\": user.email}",
+  "severity": "HIGH",
+  "confidence": 0.97
+}

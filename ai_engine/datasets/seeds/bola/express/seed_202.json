@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "const resolvePreferences = async (req, res, next) => {\n  const targetId = req.query.targetUserId || req.user.id;\n  res.locals.preferences = await PreferencesModel.findOne({ userId: targetId });\n  next();\n};\n\napp.get('/api/settings/preferences', requireAuth, resolvePreferences, (req, res) => {\n  res.json(res.locals.preferences);\n});",
+  "diagnosis": "The middleware prioritizes targetUserId from the query string over req.user.id without checking if the requesting user has administrative rights to view another user's configuration. An attacker can inspect UI preferences, notification channels, and private contact preferences of other users.",
+  "exploit_request": "GET /api/settings/preferences?targetUserId=usr_vip_8841 HTTP/1.1\nHost: portal.enterprise.com\nAuthorization: Bearer <standard_user_token>",
+  "corrected_code": "const resolvePreferences = async (req, res, next) => {\n  if (req.query.targetUserId && req.query.targetUserId !== req.user.id && !req.user.isAdmin) {\n    return res.status(403).json({ error: 'Cannot view preferences of other users' });\n  }\n  const targetId = req.user.isAdmin && req.query.targetUserId ? req.query.targetUserId : req.user.id;\n  res.locals.preferences = await PreferencesModel.findOne({ userId: targetId });\n  next();\n};\n\napp.get('/api/settings/preferences', requireAuth, resolvePreferences, (req, res) => {\n  res.json(res.locals.preferences);\n});",
+  "severity": "LOW",
+  "confidence": 0.85
+}

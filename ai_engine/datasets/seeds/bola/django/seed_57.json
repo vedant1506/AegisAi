@@ -1,0 +1,8 @@
+{
+  "vulnerable_code": "class IsAuthorOrReadOnly(permissions.BasePermission):\n    def has_object_permission(self, request, view, obj):\n        if request.method in permissions.SAFE_METHODS:\n            return True\n        return obj.patient == request.user\n\nclass MentalHealthJournalViewSet(viewsets.ModelViewSet):\n    queryset = MentalHealthJournal.objects.all()\n    serializer_class = JournalEntrySerializer\n    permission_classes = [permissions.IsAuthenticated, IsAuthorOrReadOnly]",
+  "diagnosis": "The viewset configures IsAuthorOrReadOnly on personal mental health journal entries. Because the permission class treats all SAFE_METHODS (GET, HEAD, OPTIONS) as universally permitted, any authenticated user can view, list, and read intimate mental health journal entries belonging to any other patient.",
+  "exploit_request": "GET /api/therapy/journals/4812/ HTTP/1.1\nHost: health.example.com\nAuthorization: Bearer <attacker_token>",
+  "corrected_code": "class IsJournalAuthor(permissions.BasePermission):\n    def has_object_permission(self, request, view, obj):\n        return obj.patient == request.user\n\nclass MentalHealthJournalViewSet(viewsets.ModelViewSet):\n    serializer_class = JournalEntrySerializer\n    permission_classes = [permissions.IsAuthenticated, IsJournalAuthor]\n\n    def get_queryset(self):\n        return MentalHealthJournal.objects.filter(patient=self.request.user)",
+  "severity": "CRITICAL",
+  "confidence": 0.98
+}
