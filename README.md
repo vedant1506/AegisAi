@@ -266,18 +266,18 @@ python crawler_dast/benchmarks/benchmark_harness.py --catalog crapi_v1_1_6
 
 ## 👥 Team & Academic Attributions
 
-Developed as a Major Academic Capstone Project at **GTU - Graduate School of Engineering and Technology (GTU-GSET)**.
+Developed as a Major Academic Capstone Project at **Gujarat Technological University (GTU) - School of Engineering and Technology (GTU-SET)**.
 
 * **Vedant Chauhan (Lead):** Core Architecture, FastAPI Backend, tree-sitter SAST Parser, and Next.js UI Integration.
 * **Shahad Pathan:** Dynamic Testing (DAST) Engine, Headless Playwright Crawler, Deterministic Verifier, and Benchmark Testbed Harness.
 * **Divy Patel:** AI Semantic Reasoning Engine, Dataset Engineering, and QLoRA SLM Fine-Tuning (`aegisai-security-7b`).
-* **Faculty Guide:** **Dr. Deepak Upadhyay**, Associate Professor, GTU-GSET.
+* **Faculty Guide:** **Dr. Deepak Upadhyay**, Assistant Professor, GTU-SET.
 
 ---
 
 ## ⚖️ Responsible Disclosure & Legal Disclaimer
 
-> **IMPORTANT:** AegisAI is engineered exclusively for **authorized security evaluations, defensive posture enhancement, and academic AppSec research**. It must only be executed against applications and repositories you own or possess **explicit written authorization** to assess. The authors and GTU-GSET accept no liability for illicit usage or damages.
+> **IMPORTANT:** AegisAI is engineered exclusively for **authorized security evaluations, defensive posture enhancement, and academic AppSec research**. It must only be executed against applications and repositories you own or possess **explicit written authorization** to assess. The authors and GTU-SET accept no liability for illicit usage or damages.
 
 ---
 

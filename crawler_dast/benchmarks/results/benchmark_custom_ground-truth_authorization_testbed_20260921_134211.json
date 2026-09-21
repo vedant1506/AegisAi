@@ -1,0 +1,66 @@
+{
+  "testbed_name": "Custom Ground-Truth Authorization Testbed",
+  "target_url": "http://localhost:3000",
+  "timestamp": "2026-09-21T13:42:11.699035",
+  "duration_seconds": 12.4,
+  "total_ground_truth": 10,
+  "detected_vulnerabilities": 2,
+  "true_positives": 2,
+  "false_positives": 0,
+  "false_negatives": 8,
+  "precision": 1.0,
+  "recall": 0.2,
+  "f1_score": 0.3333,
+  "detection_rate": 0.2,
+  "execution_mode": "sample",
+  "false_positive_rate": 0.0,
+  "error_count": 0,
+  "routes_discovered": 14,
+  "apis_discovered": 10,
+  "tests_executed": 3,
+  "start_time": "2026-09-21T13:42:11.699035",
+  "end_time": "2026-09-21T13:42:11.699035",
+  "configuration": {},
+  "matched_ground_truth_ids": [
+    "AUTH-GT-01",
+    "AUTH-GT-02"
+  ],
+  "findings_detail": [
+    {
+      "test_id": "TEST-001",
+      "vuln_type": "BOLA",
+      "status": "VERIFIED",
+      "confidence": 0.95,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/api/v1/users/42/billing",
+      "http_status": 200,
+      "response_time_ms": 25.0,
+      "reason": "Leaked victim billing data",
+      "matched_ground_truth": "AUTH-GT-01"
+    },
+    {
+      "test_id": "TEST-002",
+      "vuln_type": "BOLA",
+      "status": "VERIFIED",
+      "confidence": 0.92,
+      "is_confirmed": true,
+      "url": "http://localhost:3000/api/v1/documents/doc_123",
+      "http_status": 200,
+      "response_time_ms": 22.0,
+      "reason": "Leaked document payload",
+      "matched_ground_truth": "AUTH-GT-02"
+    },
+    {
+      "test_id": "TEST-003",
+      "vuln_type": "SQLI",
+      "status": "FALSE_POSITIVE",
+      "confidence": 0.0,
+      "is_confirmed": false,
+      "url": "http://localhost:3000/api/v1/search",
+      "http_status": 200,
+      "response_time_ms": 18.0,
+      "reason": "Payload sanitized",
+      "matched_ground_truth": null
+    }
+  ]
+}
