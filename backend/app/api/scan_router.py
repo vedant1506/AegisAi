@@ -3,16 +3,19 @@ AegisAI — Scan API Router
 ==========================
 Provides all scan-related HTTP endpoints:
 
-  POST  /api/v1/scan/start              → Start a new scan job
-  GET   /api/v1/scan/{scan_id}/status   → Poll job status
-  GET   /api/v1/scan/{scan_id}/report   → Retrieve full report
+  POST   /api/v1/scan/start             → Start a new scan job
+  GET    /api/v1/scan/{scan_id}/status  → Poll job status (live)
+  GET    /api/v1/scan/{scan_id}/report  → Retrieve full report
+  GET    /api/v1/scan/{scan_id}/agent-state → Live agent pipeline state
   DELETE /api/v1/scan/{scan_id}         → Cancel a running scan
 
-All heavy work is dispatched asynchronously (Celery / background task).
+All heavy work is dispatched asynchronously.
+Priority: Celery (when Redis is available) → FastAPI BackgroundTasks.
 """
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime
 
@@ -28,10 +31,60 @@ from app.schemas.io_models import (
     ScanStatus,
     ScanSummary,
 )
+from app.core.config import settings
+from app.services.scan_state_manager import state_manager
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/scan", tags=["scan"])
+
+
+def _dispatch_scan(
+    scan_id: str,
+    github_url: str | None,
+    target_url: str | None = None,
+    branch: str = "main",
+    background_tasks: BackgroundTasks = None,
+    detection_mode: str = "all",
+) -> None:
+    """Dispatch via Celery if Redis is connected, else FastAPI BackgroundTasks."""
+    # Dispatch via Celery if configured and available, else in-process BackgroundTasks
+    celery_broker = getattr(settings, "celery_broker_url", None)
+    if celery_broker:
+        try:
+            from app.tasks.scan_tasks import run_full_scan  # type: ignore
+
+            run_full_scan.apply_async(
+                kwargs={
+                    "scan_id": scan_id,
+                    "github_url": github_url,
+                    "target_url": target_url,
+                    "branch": branch,
+                    "detection_mode": detection_mode,
+                },
+                queue="aegis_scans",
+            )
+            logger.info("scan.dispatch.celery", scan_id=scan_id, detection_mode=detection_mode)
+            return
+        except Exception as celery_exc:
+            logger.warning(
+                "scan.dispatch.celery_unavailable",
+                scan_id=scan_id,
+                error=str(celery_exc),
+                fallback="BackgroundTasks",
+            )
+
+    # In-process background task (instant dispatch, no Redis blocking)
+    from app.tasks.scan_tasks import run_full_scan_pipeline
+
+    background_tasks.add_task(
+        run_full_scan_pipeline,
+        scan_id=scan_id,
+        github_url=github_url,
+        target_url=target_url,
+        branch=branch,
+        detection_mode=detection_mode,
+    )
 
 
 # ── POST /api/v1/scan/start ───────────────────────────────────
@@ -58,9 +111,13 @@ async def start_scan(
       1. Clone GitHub repo → run tree-sitter SAST
       2. Launch Playwright crawler against target_url
       3. Feed SAST + crawler data into LangGraph agent graph
-      4. Persist findings to DB
+      4. Run Hybrid Correlator to map vulns to source lines
+      5. Persist findings via ScanStateManager
     """
     scan_id = str(uuid.uuid4())
+    branch = getattr(request, "branch", "main") or "main"
+
+    detection_mode = getattr(request, "detection_mode", "all") or "all"
 
     logger.info(
         "scan.start",
@@ -68,18 +125,25 @@ async def start_scan(
         github_url=request.github_url,
         target_url=request.target_url,
         modules=[m.value for m in request.scan_modules],
+        detection_mode=detection_mode,
     )
 
-    # TODO: Replace with Celery task dispatch:
-    # from app.tasks.scan_tasks import run_full_scan
-    # run_full_scan.apply_async(args=[scan_id, request.model_dump()])
-
-    # For now, register a FastAPI background task (single-worker, non-distributed)
-    background_tasks.add_task(
-        _run_scan_pipeline,
+    # Initialise scan state immediately so /status endpoint returns 'pending'
+    state_manager.init_scan(
         scan_id=scan_id,
         github_url=request.github_url,
         target_url=request.target_url,
+        branch=branch,
+    )
+
+    # Dispatch: Celery → BackgroundTasks fallback
+    _dispatch_scan(
+        scan_id=scan_id,
+        github_url=request.github_url,
+        target_url=request.target_url,
+        branch=branch,
+        background_tasks=background_tasks,
+        detection_mode=detection_mode,
     )
 
     return ScanStartResponse(
@@ -98,19 +162,14 @@ async def start_scan(
     summary="Get scan status",
 )
 async def get_scan_status(scan_id: str) -> ApiResponse[dict]:
-    """
-    Returns the current status of a scan job.
-
-    TODO: Fetch real status from Redis/DB instead of stub response.
-    """
-    # TODO: Look up scan_id in Redis / DB
-    stub_status = {
-        "scan_id": scan_id,
-        "status": ScanStatus.RUNNING,
-        "current_agent": "recon",
-        "progress_pct": 25,
-    }
-    return ApiResponse(data=stub_status)
+    """Returns the current status of a scan job (live from state manager)."""
+    scan_status = state_manager.get_status(scan_id)
+    if scan_status is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan '{scan_id}' not found.",
+        )
+    return ApiResponse(data=scan_status)
 
 
 # ── GET /api/v1/scan/{scan_id}/report ────────────────────────
@@ -121,28 +180,32 @@ async def get_scan_status(scan_id: str) -> ApiResponse[dict]:
     summary="Get full scan report",
 )
 async def get_scan_report(scan_id: str) -> ApiResponse[ScanReport]:
-    """
-    Returns the full vulnerability report for a completed scan.
+    """Returns the full vulnerability report for a completed scan."""
+    # Check scan exists
+    scan_status = state_manager.get_status(scan_id)
+    if scan_status is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan '{scan_id}' not found.",
+        )
 
-    TODO: Fetch real report from DB using scan_id.
-    Raises 404 if scan not found, 425 if scan still running.
-    """
-    # TODO: Replace stub with DB query
-    # report = await db.get_scan_report(scan_id)
-    # if not report:
-    #     raise HTTPException(status_code=404, detail="Scan not found")
+    # Check if still running
+    current_status = scan_status.get("status", "")
+    if current_status in (ScanStatus.PENDING.value, ScanStatus.RUNNING.value):
+        raise HTTPException(
+            status_code=status.HTTP_425_TOO_EARLY,
+            detail=f"Scan '{scan_id}' is still {current_status}. Check /status.",
+        )
 
-    stub_report = ScanReport(
-        scan_id=scan_id,
-        status=ScanStatus.COMPLETED,
-        github_url="https://github.com/example/app",
-        target_url="http://localhost:3000",
-        started_at=datetime.utcnow(),
-        completed_at=datetime.utcnow(),
-        duration_seconds=0.0,
-        summary=ScanSummary(),
-    )
-    return ApiResponse(data=stub_report)
+    report_data = state_manager.get_report(scan_id)
+    if report_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Report for scan '{scan_id}' not available yet.",
+        )
+
+    report = ScanReport.model_validate(report_data)
+    return ApiResponse(data=report)
 
 
 # ── GET /api/v1/scan/{scan_id}/agent-state ───────────────────
@@ -156,15 +219,23 @@ async def get_agent_state(scan_id: str) -> ApiResponse[AgentStateSchema]:
     """
     Returns the current LangGraph agent state for a running scan.
     Useful for streaming agent progress to the frontend.
-
-    TODO: Fetch real state snapshot from Redis.
     """
-    stub_state = AgentStateSchema(
+    if not state_manager.scan_exists(scan_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan '{scan_id}' not found.",
+        )
+
+    agent_data = state_manager.get_agent_state(scan_id) or {}
+    agent_state = AgentStateSchema(
         scan_id=scan_id,
-        current_agent="recon",
-        reasoning_trace=["Starting reconnaissance…"],
+        ast_data=agent_data.get("ast_data", []),
+        crawler_data=agent_data.get("crawler_data", []),
+        ai_exploit_payload=agent_data.get("ai_exploit_payload"),
+        reasoning_trace=agent_data.get("reasoning_trace", []),
+        current_agent=agent_data.get("current_agent", "idle"),
     )
-    return ApiResponse(data=stub_state)
+    return ApiResponse(data=agent_state)
 
 
 # ── DELETE /api/v1/scan/{scan_id} ────────────────────────────
@@ -176,67 +247,32 @@ async def get_agent_state(scan_id: str) -> ApiResponse[AgentStateSchema]:
     summary="Cancel a running scan",
 )
 async def cancel_scan(scan_id: str) -> Response:
-    """
-    Cancels a pending or running scan.
+    """Cancels a pending or running scan."""
+    if not state_manager.scan_exists(scan_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan '{scan_id}' not found.",
+        )
 
-    TODO: Revoke the Celery task and update DB status to CANCELLED.
-    """
     logger.info("scan.cancel", scan_id=scan_id)
-    # TODO: celery_app.control.revoke(task_id, terminate=True)
+
+    # Attempt Celery task revocation
+    try:
+        from app.tasks.celery_app import celery_app
+
+        celery_app.control.revoke(scan_id, terminate=True)
+        logger.info("scan.cancel.celery_revoked", scan_id=scan_id)
+    except Exception as exc:
+        logger.debug("scan.cancel.celery_unavailable", error=str(exc))
+
+    state_manager.update_status(
+        scan_id,
+        ScanStatus.CANCELLED,
+        progress_pct=0,
+        current_agent="idle",
+        message="Scan cancelled by user.",
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# ── Internal: background scan pipeline stub ───────────────────
-
-async def _run_scan_pipeline(
-    scan_id: str,
-    github_url: str,
-    target_url: str,
-) -> None:
-    """
-    Placeholder for the full async scan pipeline.
-    In production this will be replaced by a Celery task.
-
-    Workflow:
-      1. Clone repo (GitPython)
-      2. Run tree-sitter AST analysis (tree_sitter_engine.py)
-      3. Launch Playwright DAST crawler (playwright_bot.py)
-      4. Feed data into LangGraph graph (state_graph.py)
-      5. Persist findings to PostgreSQL
-    """
-    logger.info("scan.pipeline.start", scan_id=scan_id)
-
-    # TODO: Step 1 — Clone
-    # repo_path = await clone_repository(github_url)
-
-    # TODO: Step 2 — SAST
-    # ast_results = await run_ast_analysis(repo_path)
-
-    # ── Step 3: DAST Reconnaissance Crawler (Shahad) ──────────
-    endpoint_results = []
-    try:
-        import sys
-        from pathlib import Path
-        dast_src = str(Path(__file__).resolve().parents[3] / "crawler_dast" / "src")
-        if dast_src not in sys.path:
-            sys.path.insert(0, dast_src)
-        from playwright_bot import run_playwright_crawler
-        recon_output = await run_playwright_crawler(target_url=target_url, scan_id=scan_id)
-        endpoint_results = recon_output.to_endpoint_schemas()
-        logger.info(
-            "scan.pipeline.dast_complete",
-            scan_id=scan_id,
-            endpoints_discovered=len(endpoint_results),
-        )
-    except Exception as exc:
-        logger.warning("scan.pipeline.dast_failed", scan_id=scan_id, error=str(exc))
-
-    # TODO: Step 4 — AI Agent Graph
-    # from ai_engine.multi_agent.state_graph import build_graph
-    # graph = build_graph()
-    # final_state = await graph.ainvoke({...})
-
-    # TODO: Step 5 — Persist
-    # await db.save_report(scan_id, final_state)
-
-    logger.info("scan.pipeline.complete", scan_id=scan_id)
+# ── (Legacy stub removed — pipeline now lives in app/tasks/scan_tasks.py) ─

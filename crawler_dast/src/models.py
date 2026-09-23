@@ -39,6 +39,8 @@ class TargetInfo(BaseModel):
     is_reachable: bool = False
     response_time_ms: float = 0.0
     server_banner: str | None = None
+    detected_framework: str | None = None
+    technologies: list[str] = Field(default_factory=list)
 
 
 # ── Reconnaissance Items ──────────────────────────────────────
@@ -52,6 +54,7 @@ class DiscoveredRoute(BaseModel):
     content_type: str | None = None
     page_title: str | None = None
     is_spa_route: bool = False
+    headers: dict[str, str] = Field(default_factory=dict)
     discovered_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -141,20 +144,27 @@ class DASTReconOutput(BaseModel):
     def to_endpoint_schemas(self) -> list[dict[str, Any]]:
         """
         Export in format 100% compatible with backend.app.schemas.io_models.EndpointSchema.
+        Includes intercepted APIs, HTML forms, and discovered web routes.
         """
         endpoints: list[dict[str, Any]] = []
         seen_keys: set[str] = set()
 
+        detected_fw = getattr(self.target, "detected_framework", None) or "generic"
+        server_ban = getattr(self.target, "server_banner", None) or ""
+
+        # 1. Intercepted APIs (XHR / Fetch)
         for api in self.apis:
-            key = f"{api.method}:{api.url}"
+            key = f"{api.method.upper()}:{api.url.split('?')[0]}"
             if key in seen_keys:
                 continue
             seen_keys.add(key)
 
             endpoints.append({
                 "url": api.url,
-                "method": api.method,
+                "method": api.method.upper(),
                 "headers": api.headers,
+                "detected_framework": detected_fw,
+                "server_banner": server_ban,
                 "tokens": {
                     "jwt": api.tokens.get("jwt"),
                     "session_cookie": api.tokens.get("session_cookie"),
@@ -163,6 +173,63 @@ class DASTReconOutput(BaseModel):
                 },
                 "body_schema": {"sample": api.body_sample} if api.body_sample else None,
                 "discovered_at": api.discovered_at.isoformat(),
+            })
+
+        # 2. Discovered Forms (POST / GET action endpoints with input params)
+        for form in self.forms:
+            form_url = form.action_url or form.page_url
+            if not form_url:
+                continue
+
+            inputs_schema = {}
+            query_parts = []
+            for i, inp in enumerate(form.inputs):
+                if isinstance(inp, dict):
+                    name = inp.get("name") or inp.get("id")
+                    if name:
+                        inputs_schema[name] = inp.get("type", "string")
+                        val = inp.get("value") or "test"
+                        query_parts.append(f"{name}={val}")
+
+            actual_url = form_url
+            if form.method.upper() == "GET" and query_parts and "?" not in form_url:
+                actual_url = f"{form_url}?{'&'.join(query_parts)}"
+
+            key = f"{form.method.upper()}:{actual_url}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+
+            endpoints.append({
+                "url": actual_url,
+                "method": form.method.upper(),
+                "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+                "detected_framework": detected_fw,
+                "server_banner": server_ban,
+                "tokens": {},
+                "body_schema": inputs_schema if inputs_schema else None,
+                "discovered_at": datetime.utcnow().isoformat(),
+            })
+
+        # 3. Discovered Web Routes & View Pages
+        for route in self.routes:
+            route_url = route.full_url
+            if not route_url:
+                continue
+            key = f"{route.method.upper()}:{route_url.split('?')[0]}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+
+            endpoints.append({
+                "url": route_url,
+                "method": route.method.upper(),
+                "headers": route.headers or {},
+                "detected_framework": detected_fw,
+                "server_banner": server_ban,
+                "tokens": {},
+                "body_schema": None,
+                "discovered_at": route.discovered_at.isoformat(),
             })
 
         return endpoints

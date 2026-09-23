@@ -26,15 +26,18 @@ from typing import Any
 # ── System Persona ────────────────────────────────────────────
 
 SYSTEM_PERSONA = """\
-You are AegisAI, an elite autonomous penetration testing AI with deep expertise in:
-- OWASP Top 10 (2021) vulnerability classes
+You are AegisAI, an elite industrial-grade autonomous penetration testing AI with deep expertise in:
+- OWASP Top 10 (2021) and API Security Top 10 (2023)
 - Common Weakness Enumeration (CWE) taxonomy
 - Static analysis (SAST) and dynamic analysis (DAST) methodologies
-- Python, JavaScript, TypeScript, Java, and Go secure coding practices
-- Exploit development and proof-of-concept generation
+- Python, JavaScript, TypeScript, Java, C# / ASP.NET, and PHP secure coding practices
+- Exploit development, verification, and precision remediation
 
-Your analysis must be precise, technical, and actionable. You respond ONLY in \
-valid JSON matching the specified schema. Do not add any prose outside the JSON structure.
+CRITICAL ACCURACY MANDATE:
+- You NEVER hallucinate, imagine, or fabricate vulnerabilities on benign public pages (like search forms, homepages, or contact pages).
+- You NEVER invent imaginary routes (like scoreboard, recycle-bin, or secret panels) that do not exist in the target input.
+- If a route is public, harmless, or lacks clear vulnerability indicators, return an EMPTY list: "vulnerabilities": [].
+- Your analysis must be strictly factual, deterministic, and verifiable. You respond ONLY in valid JSON matching the specified schema.
 """
 
 # ── Output Schema Description (injected into prompts) ─────────
@@ -44,13 +47,18 @@ VULNERABILITY_OUTPUT_SCHEMA = """\
   "vulnerabilities": [
     {
       "cwe_id": "CWE-XXX",
-      "owasp_category": "AXX:2021",
-      "title": "Short title",
+      "owasp_category": "AXX:2021 or APIX:2023",
+      "title": "Short title describing flaw (e.g. Broken Function Level Authorization in AdminAPI)",
+      "route_path": "/api/target/path",
+      "file_path": "path/to/vulnerable_file.ext",
+      "line_number": 123,
       "description": "Detailed technical description",
       "severity": "CRITICAL|HIGH|MEDIUM|LOW|INFO",
-      "confidence": 0.0,
-      "exploit_payload": "Proof-of-concept exploit string or null",
-      "remediation": "Step-by-step fix",
+      "confidence": 0.9,
+      "exploit_payload": "Proof-of-concept exploit string or payload spec",
+      "original_code": "Vulnerable snippet from source code",
+      "patched_code": "Complete AI-Secured patch with hardened security checks applied",
+      "remediation": "Step-by-step remediation instructions",
       "references": ["https://..."]
     }
   ],
@@ -157,50 +165,95 @@ def build_reason_prompt(
     scan_context: dict[str, Any] | None = None,
 ) -> str:
     """
-    Prompt for the Reason Agent to perform deep vulnerability analysis.
-
-    Args:
-        targets:       Correlated target dicts from the Recon Agent.
-        scan_context:  Optional metadata (scan_id, language, framework).
-
-    Returns:
-        Formatted prompt string.
+    Prompt for the Reason Agent to perform deep, multi-class vulnerability analysis
+    across all OWASP Top 10 and API Top 10 vulnerability categories.
     """
-    targets_json = json.dumps(targets[:5], indent=2)  # Focus on top 5
+    formatted_targets = []
+    for target in targets[:6]:
+        ast_info = target.get("ast_node", {})
+        endpoints_info = target.get("matched_endpoints", [])
+        snippet = ast_info.get("source_snippet") or ""
+        # Keep snippet under 400 chars to respect 4096 token local model context window
+        if len(snippet) > 400:
+            snippet = snippet[:400] + "\n# ... [truncated for brevity]"
+
+        target_entry = {
+            "route_path": ast_info.get("route_path"),
+            "file_path": ast_info.get("file_path"),
+            "line_number": ast_info.get("line_number"),
+            "http_method": ast_info.get("http_method", "GET"),
+            "language": ast_info.get("language"),
+            "detected_framework": (endpoints_info[0].get("detected_framework") if endpoints_info else None) or ast_info.get("language") or "generic",
+            "server_banner": (endpoints_info[0].get("server_banner") if endpoints_info else None) or "",
+            "function_name": ast_info.get("function_name"),
+            "source_code_handler": snippet,
+            "dynamic_endpoints": [
+                {
+                    "url": ep.get("url"),
+                    "method": ep.get("method"),
+                }
+                for ep in endpoints_info
+            ],
+        }
+        formatted_targets.append(target_entry)
+
+    targets_json = json.dumps(formatted_targets, indent=2)
     context_str = json.dumps(scan_context or {}, indent=2)
 
     return f"""{SYSTEM_PERSONA}
 
-## TASK: Deep Vulnerability Analysis
+## TASK: Comprehensive Application & API Vulnerability Audit
+
+You are auditing an application codebase and correlated endpoints to detect **GENUINE, ACTUAL VULNERABILITIES** present in the target.
 
 ### Scan Context
 ```json
 {context_str}
 ```
 
-### Target Routes (correlated SAST + DAST)
+### Target Routes & Actual Source Code
 ```json
 {targets_json}
 ```
 
-## YOUR OBJECTIVE
-For each target, perform a thorough security analysis:
+## YOUR AUDIT INSTRUCTIONS
+Analyze each target route and its actual handler carefully.
+Identify the **SPECIFIC, ACCURATE** vulnerability class that actually applies:
 
-1. **Identify** all exploitable vulnerability classes (OWASP Top 10, business logic flaws).
-2. **Assess** severity using CVSS v3.1 criteria (AV, AC, PR, UI, S, C, I, A).
-3. **Generate** a proof-of-concept exploit payload that would demonstrate the vulnerability.
-4. **Recommend** a specific code-level remediation with examples.
-5. **Cite** relevant CWE entries and OWASP references.
+1. **SQL Injection / Query Injection (CWE-89 / A03:2021)**:
+   - Dynamic string concatenation or formatting (`%s`, `f"..."`, `.format()`) passed directly into database queries (`db.engine.execute(...)`, `cursor.execute(...)`).
+2. **Insecure Deserialization / Code Injection (CWE-502 / A08:2021)**:
+   - Unsafe object deserialization (`yaml.load(...)`, `pickle.loads(...)`) allowing arbitrary code execution or object tampering.
+3. **Broken Object Level Authorization (BOLA / IDOR - CWE-639 / API1:2023)**:
+   - Endpoints receiving object IDs (`/get/<cust_id>`, `/{id}`, `:id`, `id` in JSON body) and returning or modifying data without checking if requesting user owns that object.
+4. **Broken Authentication / Insecure Token Verification (CWE-287 / CWE-347 / API2:2023)**:
+   - Insecure JWT verification (`verify=False`, missing signature validation), unauthenticated endpoints, or plaintext credential comparisons.
+5. **Weak Cryptography / Broken Hashing (CWE-327 / CWE-328 / A02:2021)**:
+   - Use of broken or weak hashing algorithms for passwords (MD5, SHA1) or insecure randomness.
+6. **Server-Side Template Injection (SSTI) / Code Injection (CWE-1336 / CWE-94)**:
+   - Rendering unsanitized user input or exception strings into dynamic template strings (`render_template_string(...)`).
+7. **XML External Entity (XXE) / Unsafe File Parsing (CWE-611 / A05:2021)**:
+   - Uploading or parsing documents/XML without disabling external entity references or DTD processing.
+8. **Sensitive Data Exposure (CWE-200 / API3:2023)**:
+   - Endpoints returning full database records (credit card numbers `ccn`, passwords, private user details) without filtering.
+9. **Broken Function Level Authorization (BFLA - CWE-285 / API5:2023)**:
+   - Administrative functions called without verifying administrative caller privileges.
+10. **Cross-Site Scripting (XSS) / Content Injection (CWE-79 / A03:2021)**:
+    - Endpoints accepting user feedback, comments, or inputs and returning them unescaped in HTML responses.
 
-Think step by step. Consider:
-- Input validation and sanitisation gaps
-- Authentication and authorisation bypass vectors  
-- Injection sinks (SQL, NoSQL, OS command, SSTI, XXE)
-- Insecure direct object references (IDOR)
-- Sensitive data exposure in responses
-- Security misconfigurations
+## STRICT INDUSTRIAL-GRADE ACCURACY RULES:
+1. **Zero Hallucination / Zero Fabrication**:
+   - ONLY report vulnerabilities on endpoints that actually exist in the Target Routes list above.
+   - NEVER invent fictional routes (e.g., scoreboard, recycle-bin, secret panels, mock contact lists) that do not exist in the target input.
+2. **Benign / Safe Route Handling**:
+   - Harmless public pages (e.g. `/search.html`, `/index.html`, `/home`, public info, CSS, images) with standard search or navigation forms are NOT vulnerabilities.
+   - If an endpoint is safe, public, or lacks clear vulnerability indicators, DO NOT report it. Return `"vulnerabilities": []`.
+3. **Technology & Framework Match**:
+   - Look at `detected_framework`, `server_banner`, and route extensions in the target list (e.g. Java, C# / ASP.NET, PHP, Node.js / Express, Python).
+   - Write your `patched_code` in the target's ACTUAL language! (e.g. if the target is Java or Apache, write Java; if C# / .aspx, write C#; if PHP, write PHP; DO NOT default to Python/FastAPI unless the target is genuinely Python).
 
 ## OUTPUT FORMAT
+Respond ONLY with a valid JSON object matching this schema:
 ```json
 {VULNERABILITY_OUTPUT_SCHEMA}
 ```
@@ -226,9 +279,12 @@ def build_bola_reason_prompt(
         Formatted prompt string strictly demanding JSON output.
     """
     formatted_targets = []
-    for target in targets[:5]:  # Focus on top 5 targets to fit context window
+    for target in targets[:6]:  # Focus on top targets to fit context window
         ast_info = target.get("ast_node", {})
         endpoints_info = target.get("matched_endpoints", [])
+        snippet = ast_info.get("source_snippet") or ""
+        if len(snippet) > 400:
+            snippet = snippet[:400] + "\n# ... [truncated for brevity]"
         
         target_entry = {
             "route_path": ast_info.get("route_path"),
@@ -236,7 +292,7 @@ def build_bola_reason_prompt(
             "line_number": ast_info.get("line_number"),
             "language": ast_info.get("language"),
             "function_name": ast_info.get("function_name"),
-            "source_code_handler": ast_info.get("source_snippet"),
+            "source_code_handler": snippet,
             "dynamic_endpoints": [
                 {
                     "url": ep.get("url"),

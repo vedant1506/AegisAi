@@ -94,7 +94,7 @@ class VerificationEngine:
             return self._verify_bola(spec, evidence)
         elif vtype in ("XSS", "REFLECTED_XSS", "STORED_XSS", "DOM_XSS"):
             return self._verify_xss(spec, evidence, baseline_evidence=baseline_evidence)
-        elif vtype in ("AUTH_BYPASS", "BROKEN_AUTHENTICATION", "PRIVILEGE_ESCALATION"):
+        elif vtype in ("AUTH_BYPASS", "BROKEN_AUTHENTICATION", "PRIVILEGE_ESCALATION", "BROKEN_AUTH"):
             return self._verify_auth_bypass(spec, evidence, baseline_evidence=baseline_evidence)
         else:
             return self._verify_generic(spec, evidence)
@@ -517,7 +517,60 @@ class VerificationEngine:
                         duration_ms=evidence.duration_ms,
                     )
 
-        # 4. Lack of Rate Limiting / Excessive Authentication Attempts (CWE-307)
+            # 4. Function-Level Access Control Bypass (Unprivileged Principal Accessing Admin Endpoint)
+            if spec.baseline_context and spec.baseline_context.get("admin_operation"):
+                if spec.expected_indicator and spec.expected_indicator in evidence.response_body:
+                    return VerificationResult(
+                        test_id=spec.test_id,
+                        scan_id=spec.scan_id,
+                        vulnerability_type=spec.vulnerability_type,
+                        status=VerificationStatus.VERIFIED,
+                        confidence=0.92,
+                        is_confirmed=True,
+                        evidence=evidence,
+                        expected_behavior="HTTP 401 or 403 Forbidden for non-administrative principal.",
+                        observed_behavior=f"HTTP {evidence.response_status} granting administrative function '{spec.target_url}'.",
+                        reason=f"Function-level access control bypass: unprivileged user granted administrative function (found indicator '{spec.expected_indicator}').",
+                        remediation_hint="Enforce strict role-based access control checks at the endpoint level.",
+                        duration_ms=evidence.duration_ms,
+                    )
+
+            # 5. Token Revocation / Broken Session Management (CWE-613)
+            if spec.baseline_context and spec.baseline_context.get("token_revocation_test"):
+                if "token" in body_lower or "jwt" in body_lower or (spec.expected_indicator and spec.expected_indicator in evidence.response_body):
+                    return VerificationResult(
+                        test_id=spec.test_id,
+                        scan_id=spec.scan_id,
+                        vulnerability_type=spec.vulnerability_type,
+                        status=VerificationStatus.VERIFIED,
+                        confidence=0.95,
+                        is_confirmed=True,
+                        evidence=evidence,
+                        expected_behavior="HTTP 401 Unauthorized rejecting invalidated/revoked refresh token.",
+                        observed_behavior=f"HTTP {evidence.response_status} issuing active session token from revoked refresh token.",
+                        reason="Broken authentication / token revocation failure: revoked refresh token continues to issue valid sessions.",
+                        remediation_hint="Maintain a persistent token revocation blocklist and invalidate active sessions upon logout.",
+                        duration_ms=evidence.duration_ms,
+                    )
+
+            # 6. Expected Indicator Confirmation (Generic Auth Bypass)
+            if spec.expected_indicator and spec.expected_indicator in evidence.response_body:
+                return VerificationResult(
+                    test_id=spec.test_id,
+                    scan_id=spec.scan_id,
+                    vulnerability_type=spec.vulnerability_type,
+                    status=VerificationStatus.VERIFIED,
+                    confidence=0.90,
+                    is_confirmed=True,
+                    evidence=evidence,
+                    expected_behavior="Rejection with HTTP 401 or 403 Forbidden.",
+                    observed_behavior=f"HTTP {evidence.response_status} with expected exploit indicator '{spec.expected_indicator}'.",
+                    reason=f"Authentication bypass verified: observed indicator '{spec.expected_indicator}' in response body.",
+                    remediation_hint="Ensure all protected operations validate identity and authorization boundaries.",
+                    duration_ms=evidence.duration_ms,
+                )
+
+        # 7. Lack of Rate Limiting / Excessive Authentication Attempts (CWE-307)
         if spec.baseline_context and spec.baseline_context.get("rate_limiting_test"):
             attempts = spec.baseline_context.get("attempts_count", 0)
             statuses = spec.baseline_context.get("response_statuses", [])

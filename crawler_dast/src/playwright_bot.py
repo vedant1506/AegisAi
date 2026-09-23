@@ -62,7 +62,7 @@ class CrawlerConfig:
     base_url: str = os.getenv("TARGET_BASE_URL", "http://localhost:3000")
     headless: bool = os.getenv("HEADLESS", "true").lower() == "true"
     timeout_ms: int = int(os.getenv("CRAWLER_TIMEOUT_MS", "25000"))
-    max_pages: int = int(os.getenv("CRAWLER_MAX_PAGES", "40"))
+    max_pages: int = int(os.getenv("CRAWLER_MAX_PAGES", "50"))
     max_depth: int = int(os.getenv("CRAWLER_MAX_DEPTH", "3"))
     user_agent: str = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -127,6 +127,8 @@ class PlaywrightBot:
 
         self._visited_urls: set[str] = set()
         self._inflight_requests: dict[str, dict[str, Any]] = {}
+        self._detected_server_banners: set[str] = set()
+        self._detected_technologies: set[str] = set()
 
     # ── Public Crawl Lifecycle ────────────────────────────────
 
@@ -264,8 +266,32 @@ class PlaywrightBot:
                 (time.monotonic() - req_info["start_time"]) * 1000.0 if req_info else 0.0
             )
 
-            # Check response headers for tokens (e.g. Set-Cookie)
+            # Check response headers for tokens and technology signatures
             self.token_manager.ingest_from_headers(response.headers, session_name="default")
+
+            server_hdr = response.headers.get("server", "")
+            if server_hdr:
+                self._detected_server_banners.add(server_hdr)
+            xp_hdr = response.headers.get("x-powered-by", "")
+            if xp_hdr:
+                self._detected_technologies.add(f"X-Powered-By: {xp_hdr}")
+            cookie_hdr = response.headers.get("set-cookie", "")
+
+            low_s = server_hdr.lower()
+            low_xp = xp_hdr.lower()
+            low_c = cookie_hdr.lower()
+            low_u = url.lower()
+
+            if "express" in low_xp or "connect.sid" in low_c:
+                self._detected_technologies.add("Node.js / Express")
+            elif "php" in low_xp or "phpsessid" in low_c or ".php" in low_u:
+                self._detected_technologies.add("PHP")
+            elif "asp.net" in low_xp or "aspnet" in low_c or "microsoft-iis" in low_s or ".aspx" in low_u:
+                self._detected_technologies.add("C# / ASP.NET")
+            elif "tomcat" in low_s or "coyote" in low_s or "apache-coyote" in low_s or "jsessionid" in low_c or "servlet" in low_xp or ".jsp" in low_u:
+                self._detected_technologies.add("Java")
+            elif "django" in low_c or "csrftoken" in low_c or "uvicorn" in low_s or "werkzeug" in low_s:
+                self._detected_technologies.add("Python")
 
             parsed = urlparse(url)
             clean_endpoint = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
@@ -405,28 +431,34 @@ class PlaywrightBot:
 
     async def _crawl_routes(self, page: Page) -> None:
         """
-        Crawl internal links and modern SPA hash routes (#/...) up to max_pages.
+        Crawl internal links, interactive elements, scripts, and modern SPA routes.
         """
         queue: list[str] = [self.config.base_url]
         self._visited_urls.add(self._canonicalize_url(self.config.base_url))
 
-        # Seed known SPA routes for vulnerability testing targets
-        known_spa_seeds = [
-            "/#/search",
-            "/#/score-board",
-            "/#/recycle",
-            "/#/contact",
-            "/#/about",
-            "/#/photo-wall",
-            "/#/administration",
-            "/#/basket",
+        # Heuristic seed discovery: check standard web application routes
+        common_seeds = [
+            "/index.html",
+            "/login.html",
+            "/login",
+            "/signin",
+            "/online-banking.html",
+            "/feedback.html",
+            "/search.html?searchTerm=test",
+            "/forgot-password.html",
+            "/help.html",
+            "/bank/account-summary.html",
+            "/bank/account-activity.html",
+            "/bank/transfer-funds.html",
+            "/bank/pay-bills.html",
+            "/bank/money-map.html",
+            "/bank/online-statements.html",
         ]
-        for seed in known_spa_seeds:
+        for seed in common_seeds:
             seed_url = urljoin(self.config.base_url, seed)
             canon = self._canonicalize_url(seed_url)
             if canon not in self._visited_urls:
                 queue.append(seed_url)
-                self._visited_urls.add(canon)
 
         while queue and len(self._discovered_routes) < self.config.max_pages:
             current_url = queue.pop(0)
@@ -436,7 +468,16 @@ class PlaywrightBot:
                 await self._dismiss_popups(page)
 
                 status_code = resp.status if resp else 200
-                content_type = resp.headers.get("content-type") if resp else "text/html"
+                if resp and resp.status == 404:
+                    logger.debug("crawler.skip_404", url=current_url)
+                    continue
+
+                resp_headers = dict(resp.headers) if resp else {}
+                server_hdr = resp_headers.get("server")
+                if server_hdr:
+                    self._detected_server_banners.add(server_hdr)
+
+                content_type = resp_headers.get("content-type", "text/html")
                 title = await page.title()
 
                 parsed = urlparse(current_url)
@@ -451,14 +492,55 @@ class PlaywrightBot:
                     content_type=content_type,
                     page_title=title,
                     is_spa_route=is_spa,
+                    headers=resp_headers,
                 )
 
                 # Inspect DOM for forms and inputs
                 await self._discover_forms_on_page(page, current_url)
 
-                # Collect new hyperlinks and SPA anchors
-                links = await page.eval_on_selector_all(
-                    "a[href]", "elements => elements.map(e => e.getAttribute('href'))"
+                # Collect new hyperlinks, forms, interactive buttons, and script paths
+                links = await page.evaluate(
+                    """() => {
+                        const discovered = [];
+                        // 1. Anchors
+                        document.querySelectorAll('a[href]').forEach(a => {
+                            const h = a.getAttribute('href');
+                            if (h && !h.startsWith('javascript:') && !h.startsWith('mailto:') && !h.startsWith('tel:')) {
+                                discovered.push(h);
+                            }
+                        });
+                        // 2. Forms
+                        document.querySelectorAll('form[action]').forEach(f => {
+                            const act = f.getAttribute('action');
+                            if (act) discovered.push(act);
+                        });
+                        // 3. Interactive elements
+                        document.querySelectorAll('[data-url], [data-href], [onclick], button, [role="button"], .btn').forEach(el => {
+                            const u = el.getAttribute('data-url') || el.getAttribute('data-href');
+                            if (u) discovered.push(u);
+                            const oc = el.getAttribute('onclick') || '';
+                            const match = oc.match(/['"]((?:\\/[a-zA-Z0-9_\\-\\.]+)+|\\w+\\.html)['"]/);
+                            if (match) discovered.push(match[1]);
+                        });
+                        // 4. Inline script path extraction
+                        document.querySelectorAll('script').forEach(s => {
+                            const text = s.textContent || '';
+                            const pathMatches = text.match(/['"](\\/[a-zA-Z0-9_\\-\\./]+\\.html(?:\\?[a-zA-Z0-9_=&]*)?)['"]/g);
+                            if (pathMatches) {
+                                pathMatches.forEach(m => discovered.push(m.replace(/['"]/g, '')));
+                            }
+                            const concatMatches = text.match(/['"](\\/[a-zA-Z0-9_\\-\\/]+)['"]\\s*\\+\\s*['"]([a-zA-Z0-9_\\-]+)['"]\\s*\\+\\s*['"](\\.html)['"]/g);
+                            if (concatMatches) {
+                                concatMatches.forEach(cm => {
+                                    const parts = cm.match(/['"]([^'"]+)['"]/g);
+                                    if (parts && parts.length >= 3) {
+                                        discovered.push(parts.map(p => p.replace(/['"]/g, '')).join(''));
+                                    }
+                                });
+                            }
+                        });
+                        return Array.from(new Set(discovered));
+                    }"""
                 )
 
                 for link in links:
@@ -573,6 +655,24 @@ class PlaywrightBot:
     ) -> DASTReconOutput:
         """Construct the final DASTReconOutput contract."""
         duration = time.monotonic() - start_mono
+
+        # Finalize target technology detection
+        if self._detected_server_banners:
+            target_info.server_banner = ", ".join(sorted(self._detected_server_banners))
+        target_info.technologies = sorted(list(self._detected_technologies))
+
+        banner_low = (target_info.server_banner or "").lower()
+        if "C# / ASP.NET" in self._detected_technologies or "aspnet" in banner_low or "iis" in banner_low:
+            target_info.detected_framework = "C# / ASP.NET"
+        elif "Java" in self._detected_technologies or "coyote" in banner_low or "tomcat" in banner_low or "jboss" in banner_low:
+            target_info.detected_framework = "Java"
+        elif "PHP" in self._detected_technologies or "php" in banner_low:
+            target_info.detected_framework = "PHP"
+        elif "Node.js / Express" in self._detected_technologies or "express" in banner_low:
+            target_info.detected_framework = "Node.js / Express"
+        elif "Python" in self._detected_technologies or "uvicorn" in banner_low or "werkzeug" in banner_low:
+            target_info.detected_framework = "Python"
+
         summary = self.token_manager.get_bundle_summary("default")
 
         roles = summary.get("jwt_roles", [])

@@ -1,0 +1,11 @@
+FROM ./aegisai-security-7b-q8.gguf
+
+TEMPLATE """<|im_start|>system
+{{ .System }}<|im_end|>
+<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+{{ .Response }}<|im_end|>"""
+
+PARAMETER temperature 0.2
+PARAMETER stop "<|im_end|>"

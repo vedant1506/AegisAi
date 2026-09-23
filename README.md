@@ -266,7 +266,7 @@ python crawler_dast/benchmarks/benchmark_harness.py --catalog crapi_v1_1_6
 
 ## 👥 Team & Academic Attributions
 
-Developed as a Major Academic Capstone Project at **GTU - School of Engineering and Technology (GTU-SET)**.
+Developed as a Major Academic Capstone Project at **Gujarat Technological University (GTU) - School of Engineering and Technology (GTU-SET)**.
 
 * **Vedant Chauhan (Lead):** Core Architecture, FastAPI Backend, tree-sitter SAST Parser, and Next.js UI Integration.
 * **Shahad Pathan:** Dynamic Testing (DAST) Engine, Headless Playwright Crawler, Deterministic Verifier, and Benchmark Testbed Harness.

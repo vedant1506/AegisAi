@@ -56,6 +56,7 @@ class BenchmarkMetrics:
     recall: float
     f1_score: float
     detection_rate: float
+    execution_mode: str = "live"
     false_positive_rate: float = 0.0
     error_count: int = 0
     routes_discovered: int = 0
@@ -88,10 +89,12 @@ class BenchmarkHarness:
         start_time: str = "",
         end_time: str = "",
         configuration: dict[str, Any] | None = None,
+        execution_mode: str = "live",
     ) -> BenchmarkMetrics:
         """
         Compare dynamic verification findings against ground-truth catalogs.
         """
+        import re
         ground_truth = get_ground_truth_catalog(testbed_name)
         total_gt = len(ground_truth)
 
@@ -115,8 +118,18 @@ class BenchmarkHarness:
                 gt_endpoint = gt.get("endpoint", "")
                 clean_endpoint = gt_endpoint.split("{")[0].rstrip("/")
 
-                if vuln_type == gt_type or (vuln_type in ("BOLA", "IDOR") and gt_type in ("BOLA", "IDOR")):
-                    if clean_endpoint in req_url or gt_endpoint in req_url:
+                type_match = (
+                    vuln_type == gt_type
+                    or (vuln_type in ("BOLA", "IDOR") and gt_type in ("BOLA", "IDOR"))
+                    or (vuln_type in ("AUTH_BYPASS", "BROKEN_AUTH") and gt_type in ("AUTH_BYPASS", "BROKEN_AUTH"))
+                )
+
+                if type_match:
+                    gt_pattern = re.sub(r'\{[^}]+\}', r'[^/]+', gt_endpoint)
+                    endpoint_match = bool(re.search(gt_pattern, req_url)) or (
+                        clean_endpoint in req_url and clean_endpoint not in ("/api/v1/users", "/identity/api/v2/vehicle")
+                    )
+                    if endpoint_match:
                         if gt["id"] not in matched_gt_ids:
                             matched_gt_ids.add(gt["id"])
                             matched_results.add(r.test_id)
@@ -152,10 +165,20 @@ class BenchmarkHarness:
                     gt_type = gt.get("vulnerability_type", "").upper()
                     gt_endpoint = gt.get("endpoint", "")
                     clean_endpoint = gt_endpoint.split("{")[0].rstrip("/")
-                    if r.vulnerability_type.upper() == gt_type or (
-                        r.vulnerability_type.upper() in ("BOLA", "IDOR") and gt_type in ("BOLA", "IDOR")
-                    ):
-                        if clean_endpoint in url or gt_endpoint in url:
+                    type_match = (
+                        r.vulnerability_type.upper() == gt_type
+                        or (r.vulnerability_type.upper() in ("BOLA", "IDOR") and gt_type in ("BOLA", "IDOR"))
+                        or (r.vulnerability_type.upper() in ("AUTH_BYPASS", "BROKEN_AUTH") and gt_type in ("AUTH_BYPASS", "BROKEN_AUTH"))
+                        or (r.vulnerability_type.upper() in ("SQLI", "SQL_INJECTION") and gt_type in ("SQLI", "SQL_INJECTION"))
+                        or (r.vulnerability_type.upper() in ("XSS", "REFLECTED_XSS") and gt_type in ("XSS", "REFLECTED_XSS"))
+                        or (r.vulnerability_type.upper() in ("INFO_LEAK", "SENSITIVE_DATA_EXPOSURE") and gt_type in ("INFO_LEAK", "SENSITIVE_DATA_EXPOSURE"))
+                    )
+                    if type_match:
+                        gt_pattern = re.sub(r'\{[^}]+\}', r'[^/]+', gt_endpoint)
+                        endpoint_match = bool(re.search(gt_pattern, url)) or (
+                            clean_endpoint in url and clean_endpoint not in ("/api/v1/users", "/identity/api/v2/vehicle")
+                        )
+                        if endpoint_match:
                             matched_id = gt["id"]
                             break
 
@@ -191,6 +214,7 @@ class BenchmarkHarness:
             recall=round(recall, 4),
             f1_score=round(f1, 4),
             detection_rate=round(detection_rate, 4),
+            execution_mode=execution_mode,
             false_positive_rate=round(fp_rate, 4),
             error_count=errors,
             routes_discovered=routes_count,
@@ -224,6 +248,7 @@ class BenchmarkHarness:
         print(f"  AegisAI Benchmark Evaluation: {metrics.testbed_name}")
         print("=" * 68)
         print(f"  Target URL:           {metrics.target_url}")
+        print(f"  Execution Mode:       {metrics.execution_mode.upper()}")
         print(f"  Start Time:           {metrics.start_time}")
         print(f"  End Time:             {metrics.end_time}")
         print(f"  Duration:             {metrics.duration_seconds}s")
@@ -958,10 +983,453 @@ async def run_live_crapi_benchmark(
     return metrics, saved_path
 
 
+# ── Live Custom Authorization Testbed Benchmark Runner ──────────
+
+async def run_live_custom_auth_benchmark(
+    target_url: str = "http://localhost:8081",
+    max_pages: int = 8,
+    timeout_ms: int = 15000,
+    output_dir: Path | None = None,
+    auto_start_testbed: bool = True,
+) -> tuple[BenchmarkMetrics, Path]:
+    """
+    Execute real Phase 4 empirical benchmark against live Custom Authorization Testbed.
+    Evaluates all 10 ground-truth authorization bugs (AUTH-GT-01 to AUTH-GT-10)
+    plus negative controls against live FastAPI application using real HTTP network probes.
+    """
+    import asyncio
+    import subprocess
+    import httpx
+    from exploit_runner import ExploitRunner
+    from false_positive_filter import FalsePositiveFilter
+    from models import TestSpecification
+    from playwright_bot import CrawlerConfig, PlaywrightBot
+    from target_health import check_target_health
+    from token_manager import TokenManager, redact_secret
+    from verifier import VerificationEngine, execute_and_verify
+
+    harness = BenchmarkHarness(output_dir=output_dir)
+    start_dt = datetime.now()
+    t0 = time.perf_counter()
+
+    print("\n" + "=" * 68)
+    print("AegisAI — Phase 4 Real Benchmark Execution: Custom Authorization Testbed")
+    print("=" * 68)
+    print(f"Target: {target_url}")
+    print(f"Start Time: {start_dt.isoformat()}")
+
+    testbed_proc: subprocess.Popen | None = None
+    # 1. Target Reachability Check & Auto-Spawn
+    health = await check_target_health(target_url)
+    if not health.is_reachable and auto_start_testbed and ("localhost" in target_url or "127.0.0.1" in target_url):
+        testbed_dir = BENCHMARK_DIR.parent / "target_docker" / "custom_auth_testbed"
+        app_file = testbed_dir / "app.py"
+        if app_file.exists():
+            print(f"[*] Target {target_url} not yet active. Auto-spawning local testbed server...")
+            testbed_proc = subprocess.Popen(
+                [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", "8081"],
+                cwd=str(testbed_dir),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            for _ in range(15):
+                await asyncio.sleep(0.5)
+                health = await check_target_health(target_url)
+                if health.is_reachable:
+                    break
+
+    if not health.is_reachable:
+        if testbed_proc:
+            testbed_proc.terminate()
+        raise RuntimeError(f"Target {target_url} is unreachable. Ensure custom authorization testbed is running.")
+    print(f"[+] Target Reachable: {health.is_reachable} (Latency: {health.response_time_ms:.2f}ms)")
+
+    try:
+        # 2. Setup Dual-Session & Admin Accounts in TokenManager
+        tm = TokenManager()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Login Attacker (User A)
+            r_a = await client.post(
+                f"{target_url}/api/v1/auth/login",
+                json={"email": "user_a@test.local", "password": "user_a_password"},
+            )
+            if r_a.status_code == 200:
+                token_a = r_a.json().get("token")
+                if token_a:
+                    tm.ingest_from_headers({"Authorization": f"Bearer {token_a}"}, session_name="attacker")
+
+            # Login Victim (User B)
+            r_b = await client.post(
+                f"{target_url}/api/v1/auth/login",
+                json={"email": "user_b@test.local", "password": "user_b_password"},
+            )
+            if r_b.status_code == 200:
+                token_b = r_b.json().get("token")
+                if token_b:
+                    tm.ingest_from_headers({"Authorization": f"Bearer {token_b}"}, session_name="victim")
+
+            # Login Admin
+            r_adm = await client.post(
+                f"{target_url}/api/v1/auth/login",
+                json={"email": "admin@test.local", "password": "admin_password"},
+            )
+            if r_adm.status_code == 200:
+                token_adm = r_adm.json().get("token")
+                if token_adm:
+                    tm.ingest_from_headers({"Authorization": f"Bearer {token_adm}"}, session_name="admin")
+
+            # Pre-revoke a refresh token for AUTH-GT-08
+            await client.post(
+                f"{target_url}/api/v1/auth/revoke",
+                json={"refresh_token": "revoked_token_victim_9988"},
+            )
+
+        attacker_summary = tm.get_bundle_summary("attacker")
+        victim_summary = tm.get_bundle_summary("victim")
+        admin_summary = tm.get_bundle_summary("admin")
+        print(f"[+] Sessions Active: attacker={bool(attacker_summary.get('header_count'))}, victim={bool(victim_summary.get('header_count'))}, admin={bool(admin_summary.get('header_count'))}")
+
+        # 3. Reconnaissance Crawl using PlaywrightBot
+        crawler_cfg = CrawlerConfig(
+            base_url=target_url,
+            headless=True,
+            timeout_ms=timeout_ms,
+            max_pages=max_pages,
+            max_depth=2,
+            login_path="/login",
+            login_email="user_a@test.local",
+            login_password="user_a_password",
+        )
+        print(f"[+] Launching Playwright Recon (max_pages={max_pages}, timeout={timeout_ms}ms)...")
+        t_crawl_start = time.perf_counter()
+        bot = PlaywrightBot(config=crawler_cfg, scan_id="bench-custom-auth-live")
+        recon_output = await bot.crawl()
+        crawl_duration = time.perf_counter() - t_crawl_start
+        print(f"    Routes Discovered: {len(recon_output.routes)}")
+        print(f"    APIs Intercepted:  {len(recon_output.apis)}")
+        print(f"    Forms Discovered:  {len(recon_output.forms)}")
+        print(f"    Parameters:        {len(recon_output.parameters)}")
+        print(f"    Crawl Duration:    {crawl_duration:.2f}s")
+
+        # 4. Define Test Specifications for all 10 Ground-Truth Bugs & Negative Controls
+        runner = ExploitRunner(token_manager=tm, allowed_targets=["localhost", "127.0.0.1"])
+        verifier = VerificationEngine()
+        fp_filter = FalsePositiveFilter()
+
+        test_specs: list[tuple[TestSpecification, TestSpecification | None]] = [
+            # GT 1: BOLA in Billing Records (AUTH-GT-01)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-01-BOLA",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/api/v1/users/1002/billing",
+                    method="GET",
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["ACC-VICTIM-B-9921", "899", "4242"]},
+                ),
+                None,
+            ),
+            # GT 2: BOLA in Document Management (AUTH-GT-02)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-02-BOLA",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/api/v1/documents/doc_1002",
+                    method="GET",
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["VICTIM-B-SECRET-FINANCE", "doc_1002"]},
+                ),
+                None,
+            ),
+            # GT 3: IDOR in Direct Message Viewing (AUTH-GT-03)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-03-BOLA",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/api/v1/messages/1002",
+                    method="GET",
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["Confidential victim message to board", "1002"]},
+                ),
+                None,
+            ),
+            # GT 4: Vertical Privilege Escalation in Role Assignment (AUTH-GT-04)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-04-AUTH-BYPASS",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="AUTH_BYPASS",
+                    target_url=f"{target_url}/api/v1/admin/roles",
+                    method="POST",
+                    auth_session="attacker",
+                    body={"user_id": 1001, "role": "admin"},
+                    baseline_context={"privilege_verified": True, "privilege_details": "Role updated to admin"},
+                ),
+                None,
+            ),
+            # GT 5: Function-Level Access Control Bypass on System Backup (AUTH-GT-05)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-05-AUTH-BYPASS",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="AUTH_BYPASS",
+                    target_url=f"{target_url}/api/v1/system/backup",
+                    method="GET",
+                    auth_session="attacker",
+                    expected_indicator="SYS-BACKUP-SECRET-KEY-9988",
+                    baseline_context={"admin_operation": True},
+                ),
+                None,
+            ),
+            # GT 6: Cross-Tenant Data Exposure in Analytics Endpoint (AUTH-GT-06)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-06-BOLA",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/api/v1/tenants/tenant-b/analytics",
+                    method="GET",
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["TB-PROFIT-7712", "tenant-b", "145000"]},
+                ),
+                None,
+            ),
+            # GT 7: Insecure Direct Object Reference in Order Receipts (AUTH-GT-07)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-07-BOLA",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/api/v1/orders/1002/receipt",
+                    method="GET",
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["RCPT-VICTIM-B-4411", "Victim B Hardware Order"]},
+                ),
+                None,
+            ),
+            # GT 8: Unenforced Token Revocation on Session Invalidation (AUTH-GT-08)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-08-BROKEN-AUTH",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BROKEN_AUTH",
+                    target_url=f"{target_url}/api/v1/auth/refresh",
+                    method="POST",
+                    auth_session="unauthenticated",
+                    body={"refresh_token": "revoked_token_victim_9988"},
+                    expected_indicator="token",
+                    baseline_context={"token_revocation_test": True},
+                ),
+                None,
+            ),
+            # GT 9: Cross-Tenant API Key Usage and Access (AUTH-GT-09)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-09-BOLA",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/api/v1/api-keys/key_1002",
+                    method="GET",
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["ak_live_victim_b_secret_9944", "key_1002"]},
+                ),
+                None,
+            ),
+            # GT 10: Broken Object Property Level Authorization on Profile Edit (AUTH-GT-10)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-10-BOLA",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/api/v1/users/1002/profile",
+                    method="PUT",
+                    auth_session="attacker",
+                    body={"bio": "Compromised by Alice", "is_admin": True},
+                    expected_indicator="Compromised by Alice",
+                    baseline_context={"victim_identifiers": ["1002", "Compromised by Alice"]},
+                ),
+                None,
+            ),
+            # GT 11: SQL Injection in Catalog Search (COMM-GT-01)
+            (
+                TestSpecification(
+                    test_id="BENCH-COMM-01-SQLI",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="SQLI",
+                    target_url=f"{target_url}/api/v1/catalog/search?q=%27",
+                    method="GET",
+                    payload="'",
+                    auth_session="attacker",
+                ),
+                None,
+            ),
+            # GT 12: Reflected XSS in Echo Feedback (COMM-GT-02)
+            (
+                TestSpecification(
+                    test_id="BENCH-COMM-02-XSS",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="XSS",
+                    target_url=f"{target_url}/api/v1/public/echo?msg=%3Cscript%3Ealert(1)%3C/script%3E",
+                    method="GET",
+                    payload="<script>alert(1)</script>",
+                    auth_session="unauthenticated",
+                ),
+                None,
+            ),
+            # GT 13: Sensitive System Debug Info Exposure (COMM-GT-03)
+            (
+                TestSpecification(
+                    test_id="BENCH-COMM-03-INFO-LEAK",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="INFO_LEAK",
+                    target_url=f"{target_url}/api/v1/system/debug-info",
+                    method="GET",
+                    expected_indicator="sqlite3://:memory:aegis_local_vault.db",
+                    auth_session="unauthenticated",
+                ),
+                None,
+            ),
+            # GT 14: Missing Authentication on Administrative Metrics (COMM-GT-04)
+            (
+                TestSpecification(
+                    test_id="BENCH-COMM-04-AUTH-BYPASS",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="AUTH_BYPASS",
+                    target_url=f"{target_url}/api/v1/public/unprotected-admin-stats",
+                    method="GET",
+                    expected_indicator="ACTIVE_OPERATIONAL",
+                    auth_session="unauthenticated",
+                    baseline_context={"admin_operation": True},
+                ),
+                None,
+            ),
+            # Negative Control 1: User A accessing User A resource (Legitimate access)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-11-CTRL-SELF-ACCESS",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/api/v1/users/1001/billing",
+                    method="GET",
+                    auth_session="attacker",
+                    baseline_context={"victim_identifiers": ["ACC-VICTIM-B-9921"]},
+                ),
+                None,
+            ),
+            # Negative Control 2: Non-admin accessing properly protected admin endpoint (403 Forbidden)
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-12-CTRL-DENIED-ADMIN",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="AUTH_BYPASS",
+                    target_url=f"{target_url}/api/v1/admin/audit-logs",
+                    method="GET",
+                    auth_session="attacker",
+                ),
+                None,
+            ),
+            # Negative Control 3: Nonexistent resource returns 404
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-13-CTRL-404",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="BOLA",
+                    target_url=f"{target_url}/api/v1/documents/nonexistent_9999",
+                    method="GET",
+                    auth_session="attacker",
+                ),
+                None,
+            ),
+            # Negative Control 4: Public endpoint accessible anonymously
+            (
+                TestSpecification(
+                    test_id="BENCH-AUTH-14-CTRL-PUBLIC-STATUS",
+                    scan_id="bench-custom-auth",
+                    vulnerability_type="AUTH_BYPASS",
+                    target_url=f"{target_url}/api/v1/public/status",
+                    method="GET",
+                    auth_session="unauthenticated",
+                    baseline_context={"is_public": True},
+                ),
+                None,
+            ),
+        ]
+
+        # 5. Execute Probes and Evaluate Findings
+        t_verify_start = time.perf_counter()
+        print(f"[+] Executing {len(test_specs)} live verification probes against {target_url}...")
+        results: list[VerificationResult] = []
+
+        async with runner:
+            for spec, base_spec in test_specs:
+                res = await execute_and_verify(
+                    spec=spec,
+                    runner=runner,
+                    verifier=verifier,
+                    filter_engine=fp_filter,
+                    baseline_spec=base_spec,
+                )
+                if res.evidence and res.evidence.request_headers:
+                    for k in list(res.evidence.request_headers.keys()):
+                        if k.lower() in ("authorization", "cookie", "set-cookie"):
+                            res.evidence.request_headers[k] = redact_secret(res.evidence.request_headers[k])
+                results.append(res)
+                print(f"    [{res.test_id}] {res.vulnerability_type:<14} -> {res.status.value:<15} (conf={res.confidence})")
+
+        verification_duration = time.perf_counter() - t_verify_start
+        end_dt = datetime.now()
+        duration_sec = time.perf_counter() - t0
+
+        benchmark_cfg = {
+            "max_pages": max_pages,
+            "timeout_ms": timeout_ms,
+            "boundary_enforcement": ["localhost", "127.0.0.1"],
+            "target_url": target_url,
+            "playwright_headless": True,
+            "crawl_duration_seconds": round(crawl_duration, 2),
+            "verification_duration_seconds": round(verification_duration, 2),
+            "testbed_type": "custom_auth_testbed",
+        }
+
+        # 6. Evaluate and Compute Metrics
+        metrics = harness.evaluate_findings(
+            testbed_name="Custom Ground-Truth Authorization Testbed",
+            target_url=target_url,
+            results=results,
+            routes_count=len(recon_output.routes),
+            apis_count=len(recon_output.apis),
+            duration_seconds=duration_sec,
+            start_time=start_dt.isoformat(),
+            end_time=end_dt.isoformat(),
+            configuration=benchmark_cfg,
+            execution_mode="live",
+        )
+
+        # 7. Print and Save Artifact
+        harness.print_summary_table(metrics)
+        saved_path = harness.save_benchmark_report(
+            metrics, prefix="benchmark_custom_ground-truth_authorization_testbed"
+        )
+        print(f"[+] Raw live benchmark evidence saved to:\n    {saved_path}")
+
+        return metrics, saved_path
+
+    finally:
+        if testbed_proc:
+            testbed_proc.terminate()
+            try:
+                testbed_proc.wait(timeout=3)
+            except Exception:
+                testbed_proc.kill()
+
+
 # ── Benchmark Self-Run Demo ───────────────────────────────────
 
 def run_sample_benchmark() -> None:
-    """Simulate a benchmark evaluation across the custom 10 ground-truth testbed."""
+    """Simulate a benchmark evaluation across the custom 10 ground-truth testbed (SAMPLE MODE)."""
     harness = BenchmarkHarness()
 
     sample_results = [
@@ -1027,16 +1495,19 @@ def run_sample_benchmark() -> None:
         routes_count=14,
         apis_count=10,
         duration_seconds=12.4,
+        execution_mode="sample",
     )
 
     harness.print_summary_table(metrics)
     saved_file = harness.save_benchmark_report(metrics)
-    print(f"[+] Raw benchmark results saved to: {saved_file}")
+    print(f"[+] Raw sample benchmark results saved to: {saved_file}")
 
 
 if __name__ == "__main__":
     import asyncio
-    if "--crapi-legacy" in sys.argv:
+    if "--custom-auth-live" in sys.argv or "--custom-live" in sys.argv or "--custom" in sys.argv:
+        asyncio.run(run_live_custom_auth_benchmark())
+    elif "--crapi-legacy" in sys.argv:
         asyncio.run(run_live_crapi_benchmark(use_v116=False))
     elif "--crapi" in sys.argv or "--crapi-v116" in sys.argv:
         asyncio.run(run_live_crapi_benchmark(use_v116=True))

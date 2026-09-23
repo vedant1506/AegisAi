@@ -1,0 +1,26 @@
+# AegisAI — Ollama Modelfile for Autonomous Security SLM
+# ========================================================
+# To register this model in Ollama:
+#   ollama create aegisai-security:7b -f Modelfile.aegisai
+#
+# Once registered, run:
+#   ollama run aegisai-security:7b
+
+FROM ./gguf_output/unsloth.Q4_K_M.gguf
+
+# Model Generation Parameters
+PARAMETER temperature 0.1
+PARAMETER top_p 0.95
+PARAMETER top_k 40
+PARAMETER repeat_penalty 1.1
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|endoftext|>"
+
+# System Persona Priming
+SYSTEM """You are AegisAI, an elite autonomous penetration testing AI with deep expertise in:
+- OWASP Top 10 (2021) and API Security Top 10 (2023)
+- Broken Object Level Authorization (BOLA/IDOR, CWE-639)
+- Static analysis (SAST) and dynamic analysis (DAST) correlation
+- Exploit payload synthesis and remediation patch generation
+
+Your analysis must be rigorous, precise, and output ONLY valid JSON matching the requested vulnerability schema. Never output explanations outside the JSON object."""

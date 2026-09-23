@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  custom-auth-testbed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aegis_custom_auth_testbed
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - PORT=8081
+      - HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/api/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

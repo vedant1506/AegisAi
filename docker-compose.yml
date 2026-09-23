@@ -113,3 +113,30 @@ services:
     #         - driver: nvidia
     #           count: 1
     #           capabilities: [gpu]
+
+  # ── Celery Worker (Scan Task Queue) ───────────────────────
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aegis_celery_worker
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - aegis_net
+    volumes:
+      - ./backend:/app
+      - ./crawler_dast:/crawler_dast:ro
+      - ./ai_engine:/ai_engine:ro
+    command: >
+      celery -A app.tasks.celery_app worker
+      --loglevel=info
+      --queues=aegis_scans
+      --concurrency=2
+      --hostname=aegis-worker@%h
+

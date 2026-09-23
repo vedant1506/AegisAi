@@ -1,0 +1,357 @@
+[page] AegisAi
+[unknown] 
+[unknown] 
+[unknown] 
+[unknown] 
+[unknown] 
+[unknown] 
+[unknown] 
+[table] 
+[sub_header] 1. Executive Summary & Core Innovation
+[text] Modern web application security auditing is split into two isolated, inefficient silos:
+[numbered_list] Static Analysis (SAST) (e.g., Snyk, CodeQL): Inspects code on GitHub, but flags numerous false alarms because it cannot verify whether vulnerable code paths are actually reachable or exploitable on a running server.
+[numbered_list] Dynamic Analysis (DAST) (e.g., Burp Suite, Acunetix): Attacks running web URLs from the outside, but is blind to internal code—it cannot pinpoint repository file paths, line numbers, or write code fixes.
+[numbered_list] The Business Logic Blindspot: Both traditional methods rely heavily on rigid regex patterns, fixed signatures, and dictionary fuzzing, consistently missing complex, multi-step authorization flaws like BOLA/IDOR (OWASP API Top 10 #1).
+[sub_sub_header] 🌟 The Core Innovation:
+[text] AegisAI bridges this divide. It is an autonomous, AI-driven VAPT platform that:
+[bulleted_list] Accepts a GitHub Repository, a Live Web URL, or Both (Hybrid Mode).
+[bulleted_list] Uses an open-source, locally Fine-Tuned Small Language Model (SLM) (7B/8B code model via QLoRA) to understand context, multi-user access rules, and business logic.
+[bulleted_list] Delivers Full-Cycle Reasoning: (1) Diagnosis of the root cause, (2) Live Exploit Payload proof, and (3) Remediated Code Patch ready to merge into GitHub.
+[sub_header] 2. The 3 Execution Modes
+[image] diagram.jpg
+[sub_header] 3. End-to-End System Architecture
+[text] The platform runs on a coordinated Multi-Agent Pipeline:
+[image] diagram(2).jpg
+[sub_header] 4. Industry Benchmark & Feature Comparison
+[table] 
+[sub_header] 6. Technical Stack & Hardware Profile
+[bulleted_list] Frontend Dashboard: Next.js, React, Tailwind CSS (Interactive Scan Visualizer & Monaco/Diff Viewers)
+[bulleted_list] Backend Gateway: FastAPI (Python), Async HTTPX, Redis Task Queue
+[bulleted_list] Dynamic Crawler: Microsoft Playwright (Headless Chromium for API network sniffing)
+[bulleted_list] Static Analysis: Python tree-sitter for JavaScript/TypeScript AST extraction
+[bulleted_list] AI Framework & Model: Qwen2.5-Coder-7B-Instruct or Llama-3.1-8B-Instruct fine-tuned with QLoRA (4-bit quantization) via peft, trl, and Unsloth
+[bulleted_list] Agent Framework: LangGraph
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[table_row] 
+[sub_header] 7. The 30-Second Elevator Pitch
+[quote] "AegisAI is an autonomous, AI-driven VAPT platform that bridges static code analysis with live dynamic penetration testing. When provided with a GitHub repo and a live web URL, its autonomous Playwright crawler maps routes while a locally fine-tuned 7B/8B code model r detects complex authorization flaws like BOLA. It actively verifies the exploit across multi-user sessions to eliminate false alarms, pinpoints the exact file and line number in the GitHub repo, and outputs a merge-ready code patch."
+[text] 
+[text] PHASES OF PROJECT
+[code] flowchart TB
+  %% =========================
+  %% AegisAI — Phases of Project
+  %% (based on the provided diagram)
+  %% =========================
+
+  %% ---------- PHASE 1 ----------
+  subgraph P1["PHASE 1: AT-HOME DEVELOPMENT & STAGING"]
+    direction TB
+
+    subgraph P1A["Divy's Machine (16 GB RAM)"]
+      direction TB
+      D1["1,500+ OWASP JSON Dataset Prep"]
+      D2["Unsloth Training Script Debugging"]
+      D3["LangGraph Multi-Agent Workflows"]
+      D4["Offline SLM Testing via Ollama"]
+    end
+
+    subgraph P1B["Shahad's Machine (8 GB RAM)"]
+      direction TB
+      S1["Headless Playwright Crawler"]
+      S2["Async httpx Exploit Engine"]
+      S3["Local Target: Juice Shop (Docker)"]
+    end
+
+    subgraph P1C["Vedant's Machine (8 GB RAM)"]
+      direction TB
+      V1["FastAPI Backend Gateway"]
+      V2["Next.js 15 UI & Diff Viewer"]
+      V3["tree-sitter AST Route Parser"]
+    end
+
+    Dpush["Push Clean Dataset & Scripts"]
+    Spush["Push Crawler & Verifier"]
+    Vpush["Push Core API & AST"]
+
+    Hub["Private GitHub Repo / Drive<br/>• Ready Datasets<br/>• Pre-tested Training Scripts"]
+
+    P1A --> Dpush --> Hub
+    P1B --> Spush --> Hub
+    P1C --> Vpush --> Hub
+  end
+
+  %% ---------- Transition ----------
+  PullLab["Pull to Lab PC"]
+  Hub --> PullLab
+
+  %% ---------- PHASE 2 ----------
+  subgraph P2["PHASE 2: COLLEGE LAB WORKSTATION"]
+    direction TB
+
+    L1["Step 1:<br/>Pull Git Repo + Load JSON Dataset to NVMe SSD"]
+    L2["Step 2:<br/>Run 4-bit QLoRA Fine-Tuning via Unsloth<br/>• Model: Qwen2.5-Coder-7B<br/>• VRAM: ~7.5 GB / 12 GB Dedicated GPU"]
+    L3["Step 3:<br/>Export LoRA Adapter Weights & Merge to GGUF (4-bit)"]
+    L4["Step 4:<br/>Save Model to USB Drive / Push to Hugging Face Hub"]
+
+    L1 --> L2 --> L3 --> L4
+  end
+
+  PullLab --> L1
+
+  Deploy["Deploy Trained GGUF / LoRA Weights"]
+  L4 --> Deploy
+
+  %% ---------- PHASE 3 ----------
+  subgraph P3["PHASE 3: END-TO-END SYSTEM INTEGRATION & VAPT AUDIT"]
+    direction TB
+
+    Inputs["Audit Inputs:<br/>GitHub Repo + Target Live URL"]
+
+    subgraph Pipeline["Multi-Agent Execution Pipeline"]
+      direction TB
+
+      Static["Static Parser (Vedant)<br/>tree-sitter extracts controllers & DB query AST"]
+      Recon["Recon Agent (Shahad)<br/>Playwright sniffs dynamic API endpoints & user tokens"]
+      Reason["Reasoning Agent (Divy / Trained SLM)<br/>Evaluates auth boundaries & crafts BOLA exploit payloads"]
+      Verify["Verifier Agent (Shahad)<br/>Executes dual-session cross-tenant request via httpx"]
+      Correlate["Hybrid Correlator (Vedant)<br/>Maps verified exploit to exact source file & line number"]
+
+      Static --> Reason
+      Recon --> Reason
+      Reason --> Verify --> Correlate
+    end
+
+    Deliver["Final Deliverables:<br/>1) Root Cause Diagnosis<br/>2) Verified Live Exploit Proof<br/>3) Exact File Path & Line Number<br/>4) Merge-Ready Git Pull Request Code Patch"]
+
+    Inputs --> Pipeline --> Deliver
+  end
+
+  Deploy --> Inputs
+[text] PHASES IN DETAIL
+[text] PHASE 1:e
+[code] flowchart TB
+  %% =========================
+  %% AegisAI — Phase 1 Detailed (Module split + repo workflow)
+  %% =========================
+
+  Master[(STEP 0: MASTER<br/>GitHub Monorepo<br/>Vedant pushes empty skeleton<br/>Team runs <i>git clone</i>)]
+
+  %% ---------- MODULES (parallel ownership) ----------
+  subgraph M13["👤 MODULE 1.3: AI & AGENTS (Divy - 16GB PC)"]
+    direction TB
+    Drepo["📁 ai_engine/<br/>datasets/<br/>formatted_train.json<br/>training/train_qlora.py<br/>multi_agent/state_graph.py<br/>multi_agent/prompts.py"]
+
+    D1["1. Dataset Pipeline<br/>Format 1500+ OWASP examples<br/>(Diagnosis + Exploit + Patch)"]
+    D2["2. QLoRA CPU Dry-Run<br/>Test Unsloth script on 5 rows<br/>Validate tensors before Lab GPU"]
+    D3["3. Agent State Machine<br/>LangGraph: Recon → Reason → Verify<br/>Wire AST & Crawler JSONs"]
+    D4["4. Local AI Mocking<br/>Test logic flow locally via Ollama API"]
+
+    Drepo --> D1 --> D2 --> D3 --> D4
+  end
+
+  subgraph M12["👤 MODULE 1.2: DYNAMIC & DAST (Shahad - 8GB PC)"]
+    direction TB
+    Srepo["📁 crawler_dast/<br/>src/playwright_bot.py<br/>src/token_manager.py<br/>src/exploit_runner.py<br/>target_docker/docker-compose.yml"]
+
+    S1["1. Offline Test Target<br/>Spin up Juice Shop in Docker<br/>(localhost:3000)"]
+    S2["2. Playwright Crawler<br/>Navigate SPA invisibly<br/>Sniff XHR/Fetch API calls"]
+    S3["3. Dual-Session Auth<br/>Auto-login User A & User B<br/>Extract Bearer tokens & cookies"]
+    S4["4. httpx Exploit Runner<br/>Fire mutated request<br/>(User B token → User A data)"]
+
+    Srepo --> S1 --> S2 --> S3 --> S4
+  end
+
+  subgraph M11["👤 MODULE 1.1: STATIC & PLATFORM (Vedant - 8GB PC)"]
+    direction TB
+    Vrepo["📁 backend/ & frontend/<br/>backend/app/api/scan.py<br/>backend/app/ast_parser/<br/>frontend/src/app/"]
+
+    V1["1. Git Ingestion<br/>GitPython clones target repo<br/>into /tmp/aegis_repos/"]
+    V2["2. AST Route Extraction<br/>tree-sitter parses Node/Python<br/>Extract routes & DB queries"]
+    V3["3. FastAPI Gateway<br/>POST /api/v1/scan/start<br/>Push tasks to Redis queue"]
+    V4["4. Next.js Dashboard<br/>React UI + Tailwind<br/>Monaco Editor for Git patch diffs"]
+
+    Vrepo --> V1 --> V2 --> V3 --> V4
+  end
+
+  %% ---------- CONNECTIONS / WORKFLOW ----------
+  Master --> M13
+  Master --> M12
+  Master --> M11
+
+  Dpush["git commit & push"]
+  Spush["git commit & push"]
+  Vpush["git commit & push"]
+
+  D4 --> Dpush
+  S4 --> Spush
+  V4 --> Vpush
+
+  Ready[(🛡️ READY FOR PHASE 2<br/>(LAB GPU)<br/>All isolated modules push back to main branch<br/>Fully integrated for hardware acceleration.)]
+
+  Dpush --> Ready
+  Spush --> Ready
+  Vpush --> Ready
+[image] diagram(4).jpg
+[text] PHASE 2:
+[text] 
+[image] diagram(5).jpg
+[text] PHASE 3:
+[code] flowchart TB
+    %% STYLING
+    classDef trigger fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff;
+    classDef recon fill:#1e1b4b,stroke:#8b5cf6,stroke-width:2px,color:#fff;
+    classDef ai fill:#311042,stroke:#d946ef,stroke-width:2px,color:#fff;
+    classDef verify fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#fff;
+    classDef report fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#fff;
+
+    Title["<b>🛡️ PHASE 3: END-TO-END HYBRID VAPT PIPELINE</b><br/>(LangGraph Multi-Agent Execution)"]
+    style Title fill:#000,stroke:#fff,stroke-width:2px,color:#fff,font-size:16px
+
+    %% TRIGGER
+    subgraph S1 ["🚀 1. The Audit Trigger (Vedant)"]
+        direction TB
+        UI["<b>Next.js Dashboard</b><br/>User inputs GitHub Repo & Live URL"]
+        API["<b>FastAPI Gateway</b><br/>Pushes job to Redis Task Queue"]
+        UI --> API
+    end
+
+    %% PARALLEL RECON
+    subgraph S2 ["🔍 2. Parallel Reconnaissance"]
+        direction LR
+        AST["<b>Static Agent (Vedant)</b><br/>tree-sitter parses repo<br/>Outputs AST Schema JSON"]
+        Crawler["<b>Dynamic Agent (Shahad)</b><br/>Playwright sniffs APIs & Tokens<br/>Outputs Endpoint Schema JSON"]
+    end
+
+    %% AI REASONING
+    subgraph S3 ["🧠 3. Semantic Reasoning (Divy)"]
+        direction TB
+        Merge["<b>LangGraph State Machine</b><br/>Merges AST & Dynamic JSONs"]
+        Ollama["<b>Local GGUF Model (Ollama)</b><br/>Fine-Tuned 7B SLM deduces BOLA"]
+        Payload["<b>Exploit Synthesis</b><br/>AI crafts cross-tenant attack payload"]
+        Merge --> Ollama --> Payload
+    end
+
+    %% VERIFICATION
+    subgraph S4 ["⚡ 4. Live Verification (Shahad)"]
+        direction TB
+        Fire["<b>Verifier Agent (httpx)</b><br/>Executes AI-crafted payload on live app"]
+        Check{"Did it leak<br/>Victim data?"}
+        FalsePos["False Positive (Discard)"]
+        TruePos["<b>Verified Vulnerability</b>"]
+        Fire --> Check
+        Check -->|No 403| FalsePos
+        Check -->|Yes 200| TruePos
+    end
+
+    %% CORRELATION
+    subgraph S5 ["🛠️ 5. Correlation & Delivery (Vedant)"]
+        direction TB
+        Map["<b>Hybrid Correlator</b><br/>Maps live URL to repo File & Line #"]
+        Patch["<b>AI Auto-Remediation</b><br/>Generates Git Code Patch"]
+        Dashboard["<b>Final Report (UI)</b><br/>Diagnosis + Exploit Proof + Monaco Diff"]
+        Map --> Patch --> Dashboard
+    end
+
+    %% CONNECTIONS
+    Title ~~~ S1
+    API ==>|Triggers LangGraph| S2
+    AST ==> Merge
+    Crawler ==> Merge
+    Payload ==> Fire
+    TruePos ==> Map
+
+    %% ASSIGN CLASSES
+    class S1,UI,API trigger;
+    class S2,AST,Crawler recon;
+    class S3,Merge,Ollama,Payload ai;
+    class S4,Fire,Check,FalsePos,TruePos verify;
+    class S5,Map,Patch,Dashboard report;
+[text] PHASE 4:
+[code] flowchart TB
+    %% STYLING
+    classDef testbed fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff;
+    classDef bench fill:#1e1b4b,stroke:#8b5cf6,stroke-width:2px,color:#fff;
+    classDef metrics fill:#311042,stroke:#d946ef,stroke-width:2px,color:#fff;
+    classDef ui fill:#451a03,stroke:#fbbf24,stroke-width:2px,color:#fff;
+    classDef final fill:#064e3b,stroke:#34d399,stroke-width:2px,color:#fff;
+
+    Title["<b>🏁 PHASE 4: BENCHMARKING, VALIDATION & FINAL DELIVERY</b><br/>(Empirical Evaluation & Defense Preparation)"]
+    style Title fill:#000,stroke:#fff,stroke-width:2px,color:#fff,font-size:16px
+
+    %% STEP 1: TESTBEDS
+    subgraph S1 ["🧪 1. Benchmark Testbeds (Shahad + Vedant)"]
+        direction TB
+        T1["<b>OWASP crAPI</b><br/>Microservices BOLA Target"]
+        T2["<b>OWASP Juice Shop</b><br/>Node.js SPA Access Flaws"]
+        T3["<b>Custom Ground-Truth Repo</b><br/>10 Verified Authorization Bugs"]
+        T1 ~~~ T2 ~~~ T3
+    end
+
+    %% STEP 2: BENCHMARKING
+    subgraph S2 ["📊 2. Comparative Benchmark (Shahad)"]
+        direction TB
+        B1["<b>Burp Suite Pro</b><br/>Manual Proxy + Active Scan"]
+        B2["<b>Acunetix</b><br/>Automated Dynamic DeepScan"]
+        B3["<b>AegisAI</b><br/>Autonomous Multi-Agent Scan"]
+        B1 ~~~ B2 ~~~ B3
+    end
+
+    %% STEP 3: METRICS & ABLATION
+    subgraph S3 ["🔬 3. Metrics & Ablation (Divy)"]
+        direction TB
+        M1["<b>Confusion Matrix:</b><br/>Precision, Recall, FPR Rate"]
+        M2["<b>Model Ablation:</b><br/>Base 7B vs Fine-Tuned 7B"]
+        M3["<b>Latency Benchmarks:</b><br/>Token speed & scan duration"]
+        M1 --> M2 --> M3
+    end
+
+    %% STEP 4: UI & DEPLOY
+    subgraph S4 ["💻 4. UI Polish & Packaging (Vedant)"]
+        direction TB
+        P1["<b>Docker Compose Bundle:</b><br/>FastAPI + Redis + Next.js UI"]
+        P2["<b>Monaco Diff Viewer:</b><br/>Interactive before/after patches"]
+        P3["<b>PDF Audit Export:</b><br/>One-click executive report"]
+        P1 --> P2 --> P3
+    end
+
+    %% STEP 5: FINAL OUTPUTS
+    subgraph S5 ["🎓 5. Academic Defense Deliverables"]
+        direction TB
+        D1["<b>Comprehensive Project Report:</b><br/>Architecture, Math, Evaluation"]
+        D2["<b>Live Interactive Demo:</b><br/>Single-click full scan execution"]
+        D3["<b>Defense Slide Deck:</b><br/>Benchmark tables & ROI summary"]
+        D1 ~~~ D2 ~~~ D3
+    end
+
+    %% CONNECTIONS
+    Title ~~~ S1
+    S1 ==>|Deploy Targets to| S2
+    S2 ==>|Feed Raw Scan Logs to| S3
+    S3 ==>|Embed Evaluation Data into| S4
+    S4 ==>|Stage System for| S5
+
+    %% APPLY STYLING
+    class S1,T1,T2,T3 testbed;
+    class S2,B1,B2,B3 bench;
+    class S3,M1,M2,M3 metrics;
+    class S4,P1,P2,P3 ui;
+    class S5,D1,D2,D3 final;
+[text] 
+[toggle] Version control (IMP) (Precaution needed)
+[toggle] More precaution
+[toggle] 

@@ -1,0 +1,52 @@
+{
+  "timestamp": "2026-09-18 05:40:56 UTC",
+  "dataset": "formatted_bola_dataset.json",
+  "validation_samples_count": 50,
+  "base_model": {
+    "model_name": "Qwen2.5-Coder-7B (Base / Out-of-box)",
+    "total_evaluated": 100,
+    "true_positives": 36,
+    "false_positives": 9,
+    "true_negatives": 41,
+    "false_negatives": 14,
+    "precision": 0.8,
+    "recall": 0.72,
+    "f1_score": 0.7579,
+    "false_positive_rate": 0.18,
+    "accuracy": 0.77,
+    "avg_latency_ms": 276.6,
+    "tokens_per_second": 590.95,
+    "cwe_classification_accuracy": 0.7222,
+    "exploit_synthesis_rate": 0.3889
+  },
+  "fine_tuned_model": {
+    "model_name": "AegisAI-Security-7B (Fine-Tuned QLoRA)",
+    "total_evaluated": 100,
+    "true_positives": 50,
+    "false_positives": 1,
+    "true_negatives": 49,
+    "false_negatives": 0,
+    "precision": 0.9804,
+    "recall": 1.0,
+    "f1_score": 0.9901,
+    "false_positive_rate": 0.02,
+    "accuracy": 0.99,
+    "avg_latency_ms": 201.15,
+    "tokens_per_second": 1060.2,
+    "cwe_classification_accuracy": 0.96,
+    "exploit_synthesis_rate": 0.92
+  },
+  "ablation_comparison": {
+    "precision_gain": "+18.04%",
+    "recall_gain": "+28.0%",
+    "f1_score_gain": "+23.22%",
+    "fpr_reduction": "-16.0%",
+    "exploit_synthesis_boost": "+53.11%",
+    "throughput_gain": "+469.2 tok/s"
+  },
+  "hardware": {
+    "device": "NVIDIA RTX A2000 12GB",
+    "precision": "4-bit QLoRA / 16-bit merged",
+    "context_window": 2048
+  }
+}

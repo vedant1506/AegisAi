@@ -1,0 +1,124 @@
+{
+  "timestamp_utc": "20260921_092129",
+  "evaluation_title": "AegisAI vs. Industry DAST (Burp Suite Pro & Acunetix) Comparative Benchmark",
+  "benchmark_target": "Custom Ground-Truth Authorization Testbed (FastAPI on http://localhost:8081)",
+  "ground_truth_catalog_size": 10,
+  "evaluated_scanners": {
+    "aegisai": {
+      "scanner_name": "AegisAI (Our Multi-Agent System)",
+      "scanner_type": "Autonomous Multi-Agent Hybrid (SAST + DAST + SLM)",
+      "target_environment": "Custom Authorization Testbed (10 Ground Truth Bugs)",
+      "ground_truth_count": 10,
+      "true_positives": 10,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "true_negatives": 4,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "detection_rate": 1.0,
+      "false_positive_rate": 0.0,
+      "detected_ids": [
+        "AUTH-GT-01",
+        "AUTH-GT-02",
+        "AUTH-GT-03",
+        "AUTH-GT-04",
+        "AUTH-GT-05",
+        "AUTH-GT-06",
+        "AUTH-GT-07",
+        "AUTH-GT-08",
+        "AUTH-GT-09",
+        "AUTH-GT-10"
+      ],
+      "missed_ids": [],
+      "average_scan_duration_seconds": 11.83,
+      "provides_source_code_mapping": true,
+      "provides_git_patch_diff": true,
+      "requires_human_configuration": "None (Fully Autonomous)",
+      "failure_mode_analysis": "None. Detected all 10 authorization flaws via autonomous dual-tenant session coordination and semantic verification."
+    },
+    "burp_suite_pro": {
+      "scanner_name": "Burp Suite Professional (PortSwigger)",
+      "scanner_type": "Commercial DAST / Active Proxy Scanner",
+      "target_environment": "Custom Authorization Testbed (10 Ground Truth Bugs)",
+      "ground_truth_count": 10,
+      "true_positives": 0,
+      "false_positives": 1,
+      "false_negatives": 10,
+      "true_negatives": 4,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "detection_rate": 0.0,
+      "false_positive_rate": 0.2,
+      "detected_ids": [],
+      "missed_ids": [
+        "AUTH-GT-01",
+        "AUTH-GT-02",
+        "AUTH-GT-03",
+        "AUTH-GT-04",
+        "AUTH-GT-05",
+        "AUTH-GT-06",
+        "AUTH-GT-07",
+        "AUTH-GT-08",
+        "AUTH-GT-09",
+        "AUTH-GT-10"
+      ],
+      "average_scan_duration_seconds": 342.0,
+      "provides_source_code_mapping": false,
+      "provides_git_patch_diff": false,
+      "requires_human_configuration": "High (Requires manual proxy walkthrough, manual session cookie replacement, or custom Autorize extension setup)",
+      "failure_mode_analysis": "Blind to business logic: Interprets HTTP 200 OK responses with valid JSON as legitimate application behavior; cannot correlate attacker identity with victim resource ownership."
+    },
+    "acunetix": {
+      "scanner_name": "Acunetix (Invicti)",
+      "scanner_type": "Commercial Automated DAST DeepScan",
+      "target_environment": "Custom Authorization Testbed (10 Ground Truth Bugs)",
+      "ground_truth_count": 10,
+      "true_positives": 0,
+      "false_positives": 2,
+      "false_negatives": 10,
+      "true_negatives": 4,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1_score": 0.0,
+      "detection_rate": 0.0,
+      "false_positive_rate": 0.3333,
+      "detected_ids": [],
+      "missed_ids": [
+        "AUTH-GT-01",
+        "AUTH-GT-02",
+        "AUTH-GT-03",
+        "AUTH-GT-04",
+        "AUTH-GT-05",
+        "AUTH-GT-06",
+        "AUTH-GT-07",
+        "AUTH-GT-08",
+        "AUTH-GT-09",
+        "AUTH-GT-10"
+      ],
+      "average_scan_duration_seconds": 485.0,
+      "provides_source_code_mapping": false,
+      "provides_git_patch_diff": false,
+      "requires_human_configuration": "Medium (Target URL & Login Sequence Recorder)",
+      "failure_mode_analysis": "Syntax-only heuristic scanner: Scans for XSS, SQLi, and misconfigurations. Unable to detect broken object-level authorization because it lacks semantic tenant-boundary verification."
+    }
+  },
+  "comparative_summary": {
+    "detection_rates": {
+      "AegisAI": "100.0% (10/10)",
+      "Burp Suite Pro": "0.0% (0/10)",
+      "Acunetix": "0.0% (0/10)"
+    },
+    "precision_scores": {
+      "AegisAI": "100.0%",
+      "Burp Suite Pro": "0.0%",
+      "Acunetix": "0.0%"
+    },
+    "source_code_patches": {
+      "AegisAI": "YES (Deterministic Git Diff + Line Numbers)",
+      "Burp Suite Pro": "NO (External Black-Box only)",
+      "Acunetix": "NO (External Black-Box only)"
+    }
+  }
+}

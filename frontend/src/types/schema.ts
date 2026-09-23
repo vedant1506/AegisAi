@@ -64,15 +64,21 @@ export interface DetectedVulnerability {
   exploit_payload?: string | null;
   remediation?: string | null;
   references?: string[];
+  original_code?: string | null;
+  patched_code?: string | null;
+  file_path?: string | null;
+  line_number?: number | null;
 }
 
-// ── Scan Request / Response ───────────────────────────────────
+export type DetectionMode = "general" | "bola_idor" | "all";
+
 export interface ScanStartRequest {
-  github_url: string;
-  target_url: string;
+  github_url?: string | null;
+  target_url?: string | null;
   /** Branch to analyse; defaults to 'main' */
   branch?: string;
   scan_modules?: ScanModule[];
+  detection_mode?: DetectionMode;
 }
 
 export type ScanModule = "sast" | "dast" | "ai_exploit" | "all";
@@ -87,8 +93,8 @@ export interface ScanStartResponse {
 export interface ScanReport {
   scan_id: string;
   status: ScanStatus;
-  github_url: string;
-  target_url: string;
+  github_url?: string | null;
+  target_url?: string | null;
   started_at: string;
   completed_at?: string | null;
   duration_seconds?: number | null;

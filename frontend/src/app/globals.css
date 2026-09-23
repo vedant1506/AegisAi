@@ -6,7 +6,7 @@
 :root {
   --color-aegis-primary: theme("colors.aegis.500");
   --color-aegis-dark: theme("colors.aegis.900");
-  --radius-card: 0.75rem;
+  --radius-card: 0.875rem;
 }
 
 /* ── Base Reset ────────────────────────────────────────────── */
@@ -19,80 +19,170 @@
 
   html {
     scroll-behavior: smooth;
+    color-scheme: dark;
   }
 
   body {
-    @apply bg-slate-950 text-slate-100;
+    @apply bg-[#050811] text-slate-100 antialiased selection:bg-aegis-500/25 selection:text-white;
   }
 
-  /* Scrollbar styling */
+  /* Sleek minimalist scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-slate-900;
+    background: rgba(7, 12, 24, 0.6);
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-aegis-700 rounded-full;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-aegis-500;
+    background: rgba(255, 255, 255, 0.25);
   }
 }
 
-/* ── Component Utilities ───────────────────────────────────── */
+/* ── Liquid Glass Design System ────────────────────────────── */
 @layer components {
-  /* Glass card */
-  .card-glass {
-    @apply bg-white/5 border border-white/10 backdrop-blur-sm rounded-xl;
+  /* Atmosphere background: deep liquid ambient light */
+  .liquid-bg {
+    background-color: #050811;
+    background-image: 
+      radial-gradient(at 15% 10%, rgba(14, 165, 233, 0.07) 0px, transparent 45%),
+      radial-gradient(at 85% 12%, rgba(99, 102, 241, 0.05) 0px, transparent 45%),
+      radial-gradient(at 50% 45%, rgba(15, 23, 42, 0.75) 0px, transparent 100%),
+      radial-gradient(at 80% 80%, rgba(14, 165, 233, 0.04) 0px, transparent 50%),
+      radial-gradient(at 10% 90%, rgba(139, 92, 246, 0.04) 0px, transparent 45%);
+    background-attachment: fixed;
   }
 
-  /* Severity badge base */
+  /* Primary Liquid Glass Panel */
+  .liquid-glass {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.045) 0%,
+      rgba(255, 255, 255, 0.01) 100%
+    ), rgba(8, 14, 28, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25),
+      0 16px 36px -8px rgba(0, 0, 0, 0.5);
+    border-radius: var(--radius-card);
+  }
+
+  /* Subtle Liquid Glass Panel (Cards / Nested modules) */
+  .liquid-glass-subtle {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.035) 0%,
+      rgba(255, 255, 255, 0.005) 100%
+    ), rgba(10, 16, 32, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.065);
+    box-shadow: 
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.09),
+      0 8px 24px -4px rgba(0, 0, 0, 0.4);
+    border-radius: 0.75rem;
+  }
+
+  /* Interactive Liquid Glass (Cards with hover elevation) */
+  .liquid-glass-interactive {
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .liquid-glass-interactive:hover {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.07) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    ), rgba(12, 20, 38, 0.78);
+    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.18),
+      inset 0 -1px 1px 0 rgba(0, 0, 0, 0.3),
+      0 20px 40px -10px rgba(0, 0, 0, 0.6);
+    transform: translateY(-1.5px);
+  }
+
+  /* Legacy card-glass mapping for compatibility */
+  .card-glass {
+    @apply liquid-glass;
+  }
+
+  /* Liquid Glass Input */
+  .liquid-input {
+    background: rgba(6, 10, 22, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+    color: #f8fafc;
+    transition: all 0.2s ease;
+  }
+
+  .liquid-input:focus {
+    background: rgba(9, 15, 30, 0.75);
+    border-color: rgba(56, 189, 248, 0.45);
+    box-shadow: 
+      inset 0 1px 2px 0 rgba(0, 0, 0, 0.3),
+      0 0 0 1px rgba(56, 189, 248, 0.3);
+    outline: none;
+  }
+
+  /* Severity badge: Clean, light, elegant without garish neon glows */
   .badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide uppercase transition-colors;
   }
 
   .badge-critical {
-    @apply badge bg-red-500/20 text-red-400 border border-red-500/30;
+    @apply badge bg-red-500/10 text-red-400 border border-red-500/25;
   }
 
   .badge-high {
-    @apply badge bg-orange-500/20 text-orange-400 border border-orange-500/30;
+    @apply badge bg-orange-500/10 text-orange-400 border border-orange-500/25;
   }
 
   .badge-medium {
-    @apply badge bg-yellow-500/20 text-yellow-400 border border-yellow-500/30;
+    @apply badge bg-amber-500/10 text-amber-400 border border-amber-500/25;
   }
 
   .badge-low {
-    @apply badge bg-blue-500/20 text-blue-400 border border-blue-500/30;
+    @apply badge bg-sky-500/10 text-sky-400 border border-sky-500/25;
   }
 
   .badge-info {
-    @apply badge bg-slate-500/20 text-slate-400 border border-slate-500/30;
+    @apply badge bg-slate-500/10 text-slate-400 border border-slate-500/25;
   }
 
-  /* Button variants */
+  /* Liquid Buttons */
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-aegis-600 hover:bg-aegis-500
-           text-white font-medium rounded-lg transition-all duration-200
-           focus:outline-none focus:ring-2 focus:ring-aegis-500 focus:ring-offset-2
-           focus:ring-offset-slate-950 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5
+           bg-gradient-to-r from-aegis-600/90 to-aegis-500/90 hover:from-aegis-500 hover:to-aegis-400
+           text-white text-sm font-semibold rounded-lg transition-all duration-200
+           border border-white/15 shadow-md shadow-black/40
+           focus:outline-none focus:ring-2 focus:ring-aegis-400/40 focus:ring-offset-2
+           focus:ring-offset-[#050811] disabled:opacity-40 disabled:cursor-not-allowed
+           active:scale-[0.98];
   }
 
   .btn-ghost {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-transparent
-           hover:bg-white/10 text-slate-300 font-medium rounded-lg
-           transition-all duration-200 border border-white/10 hover:border-white/20;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2
+           bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 hover:text-white
+           text-sm font-medium rounded-lg transition-all duration-200
+           border border-white/10 hover:border-white/20 backdrop-blur-md;
   }
 
   /* Code block */
   .code-block {
-    @apply font-mono text-sm bg-slate-900 border border-slate-700
-           rounded-lg p-4 overflow-x-auto;
+    @apply font-mono text-xs bg-[#070b18]/80 border border-white/10
+           rounded-lg p-4 overflow-x-auto text-slate-300;
   }
 }

@@ -111,8 +111,9 @@ class TrainingConfig:
     # ── Training hyperparameters ──────────────────────────────
     output_dir: str = "./lora_adapters/aegisai-security"
     num_train_epochs: int = 3         # 3-4 Epochs per roadmap Phase 2.2
-    per_device_train_batch_size: int = 2   # Batch Size = 2 per roadmap
-    gradient_accumulation_steps: int = 4   # Effective batch = 2 * 4 = 8 per roadmap
+    max_steps: int = -1               # If > 0, overrides num_train_epochs (for sanity checks)
+    per_device_train_batch_size: int = 1   # Batch size 1 reduces peak VRAM spikes
+    gradient_accumulation_steps: int = 8   # Effective batch = 1 * 8 = 8 (preserves training dynamics)
     warmup_steps: int = 10
     learning_rate: float = 2e-4
     weight_decay: float = 0.01
@@ -120,11 +121,15 @@ class TrainingConfig:
     fp16: bool = False                # Auto-selected if bf16 is unsupported
     bf16: bool = True                 # Faster on Ampere+ (auto-detected on target GPU)
     optim: str = "adamw_8bit"         # 8-bit AdamW saves ~4GB VRAM
-    logging_steps: int = 10
-    save_strategy: str = "epoch"
-    eval_strategy: str = "epoch"
+    logging_steps: int = 5
+    save_strategy: str = "steps"      # Save by steps so progress is never lost if interrupted
+    save_steps: int = 25              # Checkpoint every 25 steps
+    save_total_limit: int = 2         # Keep only 2 most recent checkpoints to save disk space
+    eval_strategy: str = "steps"
+    eval_steps: int = 25
     seed: int = 42
     report_to: str = "none"           # Set to "wandb" for tracking per roadmap
+    resume: bool = True               # Auto-resume from latest checkpoint if one exists in output_dir
 
     # ── Inference & Export (after training) ────────────────────
     save_merged_model: bool = False   # Merge LoRA + base in 16-bit for deployment
@@ -439,7 +444,7 @@ def train(config: TrainingConfig | None = None) -> None:
 
     # Handle eval_strategy (Transformers >= 4.41) vs evaluation_strategy gracefully
     eval_kwargs: dict[str, Any] = {}
-    eval_mode = cfg.eval_strategy if eval_dataset is not None else "no"
+    eval_mode = cfg.eval_strategy if (eval_dataset is not None and cfg.max_steps <= 0) else "no"
     try:
         sig = inspect.signature(TrainingArguments.__init__)
         if "eval_strategy" in sig.parameters:
@@ -449,7 +454,10 @@ def train(config: TrainingConfig | None = None) -> None:
     except Exception:
         eval_kwargs["eval_strategy"] = eval_mode
 
-    training_args = TrainingArguments(
+    if eval_mode == "steps":
+        eval_kwargs["eval_steps"] = cfg.eval_steps
+
+    training_args_kwargs: dict[str, Any] = dict(
         output_dir=cfg.output_dir,
         num_train_epochs=cfg.num_train_epochs,
         per_device_train_batch_size=cfg.per_device_train_batch_size,
@@ -463,10 +471,16 @@ def train(config: TrainingConfig | None = None) -> None:
         optim=cfg.optim,
         logging_steps=cfg.logging_steps,
         save_strategy=cfg.save_strategy,
+        save_steps=cfg.save_steps,
+        save_total_limit=cfg.save_total_limit,
         seed=cfg.seed,
         report_to=cfg.report_to,
         **eval_kwargs,
     )
+    if cfg.max_steps > 0:
+        training_args_kwargs["max_steps"] = cfg.max_steps
+
+    training_args = TrainingArguments(**training_args_kwargs)
 
     trainer = SFTTrainer(
         model=model,
@@ -475,14 +489,25 @@ def train(config: TrainingConfig | None = None) -> None:
         eval_dataset=eval_dataset,
         dataset_text_field="text",
         max_seq_length=cfg.max_seq_length,
-        dataset_num_proc=2,
+        dataset_num_proc=1 if os.name == "nt" else 2,
         packing=False,
         args=training_args,
     )
 
-    # ── Step 5: Train ─────────────────────────────────────────
-    logger.info("training.running")
-    trainer_stats = trainer.train()
+    # ── Step 5: Train (with auto-resume if checkpoint exists) ──
+    resume_checkpoint = None
+    if cfg.resume and os.path.isdir(cfg.output_dir):
+        checkpoints = [
+            d for d in os.listdir(cfg.output_dir)
+            if d.startswith("checkpoint-") and os.path.isdir(os.path.join(cfg.output_dir, d))
+        ]
+        if checkpoints:
+            checkpoints.sort(key=lambda x: int(x.split("-")[1]))
+            resume_checkpoint = os.path.join(cfg.output_dir, checkpoints[-1])
+            logger.info("training.resuming_from_checkpoint", checkpoint=resume_checkpoint)
+
+    logger.info("training.running", resume_from=resume_checkpoint)
+    trainer_stats = trainer.train(resume_from_checkpoint=resume_checkpoint)
     logger.info(
         "training.complete",
         runtime=trainer_stats.metrics.get("train_runtime"),
@@ -535,13 +560,20 @@ if __name__ == "__main__":
     parser.add_argument("--chat-template", default=TrainingConfig.chat_template, help="Chat template name for Unsloth get_chat_template (e.g. 'qwen2.5')")
     parser.add_argument("--system-prompt", default=None, help="Custom security analysis system prompt")
     parser.add_argument("--epochs", type=int, default=TrainingConfig.num_train_epochs)
+    parser.add_argument("--max-steps", type=int, default=TrainingConfig.max_steps, help="Max training steps (-1 to train full epochs)")
+    parser.add_argument("--logging-steps", type=int, default=TrainingConfig.logging_steps, help="Logging steps for loss printing")
+    parser.add_argument("--save-strategy", default=TrainingConfig.save_strategy, choices=["steps", "epoch", "no"], help="Save strategy ('steps' recommended)")
+    parser.add_argument("--save-steps", type=int, default=TrainingConfig.save_steps, help="Save checkpoint every N steps")
+    parser.add_argument("--save-total-limit", type=int, default=TrainingConfig.save_total_limit, help="Max checkpoints to keep on disk")
     parser.add_argument("--lora-r", type=int, default=TrainingConfig.lora_r, help="LoRA rank (16 or 32)")
     parser.add_argument("--lora-alpha", type=int, default=None, help="LoRA alpha (defaults to match lora-r)")
-    parser.add_argument("--batch-size", type=int, default=TrainingConfig.per_device_train_batch_size)
+    parser.add_argument("--batch-size", type=int, default=TrainingConfig.per_device_train_batch_size, help="Per-device train batch size (1 recommended for stability)")
+    parser.add_argument("--grad-accum", type=int, default=TrainingConfig.gradient_accumulation_steps, help="Gradient accumulation steps")
     parser.add_argument("--learning-rate", type=float, default=TrainingConfig.learning_rate)
     parser.add_argument("--dataset", default=TrainingConfig.dataset_path)
     parser.add_argument("--val-set-size", type=float, default=TrainingConfig.val_set_size)
     parser.add_argument("--output-dir", default=TrainingConfig.output_dir)
+    parser.add_argument("--no-resume", action="store_true", help="Disable auto-resuming from existing checkpoints")
     parser.add_argument("--merge", action="store_true", help="Merge LoRA + base in 16-bit after training")
     parser.add_argument("--export-gguf", action="store_true", help="Export to GGUF format for Ollama deployment")
     parser.add_argument("--gguf-quantization", default=TrainingConfig.gguf_quantization, help="GGUF quantization (e.g. q4_k_m, q5_k_m)")
@@ -557,13 +589,20 @@ if __name__ == "__main__":
         chat_template=args.chat_template,
         system_prompt=args.system_prompt,
         num_train_epochs=args.epochs,
+        max_steps=args.max_steps,
+        logging_steps=args.logging_steps,
+        save_strategy=args.save_strategy,
+        save_steps=args.save_steps,
+        save_total_limit=args.save_total_limit,
         lora_r=args.lora_r,
         lora_alpha=lora_alpha,
         per_device_train_batch_size=args.batch_size,
+        gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.learning_rate,
         dataset_path=args.dataset,
         val_set_size=args.val_set_size,
         output_dir=args.output_dir,
+        resume=not args.no_resume,
         save_merged_model=args.merge,
         save_gguf=args.export_gguf,
         gguf_quantization=args.gguf_quantization,

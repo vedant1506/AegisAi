@@ -246,6 +246,55 @@ CUSTOM_AUTH_GROUND_TRUTH: list[dict[str, Any]] = [
     },
 ]
 
+COMMON_WEB_GROUND_TRUTH: list[dict[str, Any]] = [
+    {
+        "id": "COMM-GT-01",
+        "title": "SQL Injection in Product Catalog Search",
+        "cwe_id": "CWE-89",
+        "vulnerability_type": "SQLI",
+        "endpoint": "/api/v1/catalog/search",
+        "method": "GET",
+        "parameter": "q",
+        "severity": "CRITICAL",
+        "notes": "Classic SQLi detected by traditional tools (Burp, Acunetix) and AegisAI.",
+    },
+    {
+        "id": "COMM-GT-02",
+        "title": "Reflected Cross-Site Scripting (XSS) in Echo Feedback",
+        "cwe_id": "CWE-79",
+        "vulnerability_type": "XSS",
+        "endpoint": "/api/v1/public/echo",
+        "method": "GET",
+        "parameter": "msg",
+        "severity": "MEDIUM",
+        "notes": "Classic XSS detected by traditional tools (Burp, Acunetix) and AegisAI.",
+    },
+    {
+        "id": "COMM-GT-03",
+        "title": "Sensitive System & Debug Information Exposure",
+        "cwe_id": "CWE-200",
+        "vulnerability_type": "INFO_LEAK",
+        "endpoint": "/api/v1/system/debug-info",
+        "method": "GET",
+        "severity": "LOW",
+        "notes": "Information leak detected by traditional tools (Burp, Acunetix) and AegisAI.",
+    },
+    {
+        "id": "COMM-GT-04",
+        "title": "Missing Authentication on Administrative Metrics",
+        "cwe_id": "CWE-306",
+        "vulnerability_type": "AUTH_BYPASS",
+        "endpoint": "/api/v1/public/unprotected-admin-stats",
+        "method": "GET",
+        "severity": "HIGH",
+        "notes": "Unauthenticated admin endpoint detected by traditional tools (Burp, Acunetix) and AegisAI.",
+    },
+]
+
+COMPREHENSIVE_BENCHMARK_GROUND_TRUTH: list[dict[str, Any]] = (
+    COMMON_WEB_GROUND_TRUTH + CUSTOM_AUTH_GROUND_TRUTH
+)
+
 
 def get_ground_truth_catalog(testbed_name: str) -> list[dict[str, Any]]:
     """Retrieve ground truth dataset for the specified testbed."""
@@ -256,7 +305,12 @@ def get_ground_truth_catalog(testbed_name: str) -> list[dict[str, Any]]:
         return CRAPI_GROUND_TRUTH_V1_1_6
     elif "crapi" in key:
         return CRAPI_GROUND_TRUTH
-    elif "custom" in key or "auth" in key:
+    elif "common" in key:
+        return COMMON_WEB_GROUND_TRUTH
+    elif "custom_auth" in key or "auth_only" in key:
         return CUSTOM_AUTH_GROUND_TRUTH
+    elif "comprehensive" in key or "14" in key or "custom" in key:
+        return COMPREHENSIVE_BENCHMARK_GROUND_TRUTH
     else:
-        return JUICE_SHOP_GROUND_TRUTH + CUSTOM_AUTH_GROUND_TRUTH
+        return COMPREHENSIVE_BENCHMARK_GROUND_TRUTH
+

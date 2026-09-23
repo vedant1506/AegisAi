@@ -111,3 +111,8 @@ temp/
 # ── Playwright ──────────────────────────────────────────────
 playwright-report/
 test-results/
+
+# ── Scratch & Local ML Caches ───────────────────────────────
+scratch/
+unsloth_compiled_cache/
+
